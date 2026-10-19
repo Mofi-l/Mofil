@@ -144,15 +144,17 @@ export default function Overlay({ active, onNavigate }) {
       </section>
 
       {/* PROJECTS — character faces back, centered; content centered */}
-      <section className="section section--center" id="projects">
-        <div className="panel panel--wide panel--center panel--tall">
-          <h2 className="section-heading">{projects.heading}</h2>
-          <div className="project-grid">
+      <section className="section section--contracts" id="projects">
+        <div className="contracts-wrap">
+          <h2 className="section-heading section-heading--center">
+            {projects.heading}
+          </h2>
+          <div className="contracts-grid">
             {projects.items.map((p) => (
-              <a className="project-card" href={p.link} key={p.name}>
-                <h3 className="project-card__name">{p.name}</h3>
-                <p className="project-card__desc">{p.desc}</p>
-                <div className="project-card__tags">
+              <a className="contract-card" href={p.link} key={p.name}>
+                <h3 className="contract-card__name">{p.name}</h3>
+                <p className="contract-card__desc">{p.desc}</p>
+                <div className="contract-card__tags">
                   {p.tags.map((t) => (
                     <span className="tag" key={t}>
                       {t}

@@ -238,15 +238,9 @@
   width: 1.6rem;
   height: 1.6rem;
   object-fit: contain;
-  /* Force the colored brand SVGs to flat white to match the Font Awesome
-     icons; they pick up the ember hover tint via opacity like the rest. */
-  filter: brightness(0) invert(1);
   opacity: 0.92;
 }
 .skill-card:hover .skill-card__icon img {
-  /* ember tint on hover, matching the FA icons' color shift */
-  filter: brightness(0) saturate(100%) invert(55%) sepia(60%)
-    saturate(1200%) hue-rotate(340deg) brightness(101%) contrast(101%);
   opacity: 1;
 }
 .skill-card:hover .skill-card__icon {
@@ -442,6 +436,84 @@
   border: 1px solid rgba(109, 123, 141, 0.3);
   padding: 0.2rem 0.5rem;
   border-radius: 2px;
+}
+
+/* ── Contracts (projects) — full-width grid, no bordered panel ── */
+.section--contracts {
+  justify-content: center;
+  text-align: center;
+}
+.contracts-wrap {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.section-heading--center {
+  text-align: center;
+}
+.section-heading--center::after {
+  margin-left: auto;
+  margin-right: auto;
+  background: linear-gradient(90deg, transparent, var(--blood), transparent);
+}
+.contracts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.contract-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  text-align: left;
+  padding: 1.3rem 1.3rem 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 2px solid var(--blood);
+  border-radius: 2px;
+  background: linear-gradient(
+    135deg,
+    rgba(18, 18, 25, 0.78),
+    rgba(10, 10, 14, 0.55)
+  );
+  backdrop-filter: blur(8px);
+  transition: transform 0.22s ease, border-color 0.22s ease,
+    background 0.22s ease;
+}
+.contract-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--blood-bright);
+  background: rgba(193, 18, 31, 0.08);
+}
+.contract-card__name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  line-height: 1.25;
+}
+.contract-card__desc {
+  font-size: 0.84rem;
+  color: var(--ink-dim);
+  line-height: 1.55;
+  flex: 1;
+}
+.contract-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+@media (max-width: 900px) {
+  .contracts-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .contracts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Contact ── */
