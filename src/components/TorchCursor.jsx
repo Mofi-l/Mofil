@@ -138,7 +138,7 @@ export default function TorchCursor({ extinguishRef, facePosRef }) {
       const ext = extinguishRef?.current ?? 0
       burn *= Math.max(0, 1 - ext)
       if (ext > 0.5 && prevExt <= 0.5 && hasPointer) {
-        for (let k = 0; k < 10; k++) spawnSmoke(flame.x, flame.y)
+        for (let k = 0; k < 2; k++) spawnSmoke(flame.x, flame.y)
         // Visible breath from the mouth toward the flame.
         const face = facePosRef?.current
         if (face && face.visible) {
@@ -159,10 +159,11 @@ export default function TorchCursor({ extinguishRef, facePosRef }) {
         else if (Math.random() < 0.14 * burn) spawnFire(flame.x, flame.y, 1, burn)
       }
 
-      // Idle smoke from the resting flame (also while it's being blown out).
-      if (hasPointer && (idle || ext > 0.3)) {
+      // Idle smoke from the resting flame — only while the flame is actually
+      // lit (not during/after blow-out) and much sparser than before.
+      if (hasPointer && idle && ext < 0.2) {
         smokeAccumulator += dt
-        if (smokeAccumulator > 90 && Math.random() < 0.4 + burn * 0.6 + ext) {
+        if (smokeAccumulator > 220 && Math.random() < 0.25 * burn) {
           smokeAccumulator = 0
           spawnSmoke(flame.x, flame.y)
         }

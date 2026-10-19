@@ -147,7 +147,7 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef,
       // dollies, unlike a fixed pixel offset.
       if (facePosRef) {
         _mouthWorld.copy(_headWorld)
-        _mouthWorld.y += 0.5 // world units up from neck → mouth/face
+        _mouthWorld.y += 0.22 // world units up from neck → mouth
         _mouthProj.copy(_mouthWorld).project(state.camera)
         const sx = (_mouthProj.x * 0.5 + 0.5) * window.innerWidth
         const sy = (-(_mouthProj.y) * 0.5 + 0.5) * window.innerHeight
