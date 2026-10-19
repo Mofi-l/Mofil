@@ -73,7 +73,7 @@ function CameraRig({ scrollRef }) {
   return null
 }
 
-export default function Scene({ scrollRef, onReady }) {
+export default function Scene({ scrollRef, onReady, extinguishRef }) {
   const groupRef = useRef()
 
   return (
@@ -120,7 +120,7 @@ export default function Scene({ scrollRef, onReady }) {
       <pointLight position={[0, -1.5, 2]} intensity={1.3} color="#c1121f" />
 
       <Suspense fallback={null}>
-        <MonkModel scrollRef={scrollRef} groupRef={groupRef} onReady={onReady} />
+        <MonkModel scrollRef={scrollRef} groupRef={groupRef} onReady={onReady} extinguishRef={extinguishRef} />
         <Environment preset="night" />
         <ContactShadows
           position={[0, -2.4, 0]}

@@ -17,7 +17,7 @@ import { useEffect, useRef } from 'react'
  * Full-screen <canvas> above the 3D scene; additive blending for fire/trail,
  * normal blending for smoke.
  */
-export default function TorchCursor() {
+export default function TorchCursor({ extinguishRef }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -87,6 +87,7 @@ export default function TorchCursor() {
     }
 
     let smokeAccumulator = 0
+    let prevExt = 0
     let last = performance.now()
     let raf
 
@@ -112,6 +113,14 @@ export default function TorchCursor() {
       if (idleFor > BURN_START_MS) {
         burn = Math.max(0, 1 - (idleFor - BURN_START_MS) / BURN_FADE_MS)
       }
+      // Blow-out: the character snuffing the torch drives this toward 1,
+      // which crushes the flame. A rising edge puffs a burst of smoke.
+      const ext = extinguishRef?.current ?? 0
+      burn *= Math.max(0, 1 - ext)
+      if (ext > 0.5 && prevExt <= 0.5 && hasPointer) {
+        for (let k = 0; k < 10; k++) spawnSmoke(flame.x, flame.y)
+      }
+      prevExt = ext
 
       // Record the trail head.
       if (hasPointer) {
@@ -125,10 +134,10 @@ export default function TorchCursor() {
         else if (Math.random() < 0.14 * burn) spawnFire(flame.x, flame.y, 1, burn)
       }
 
-      // Idle smoke from the resting flame.
-      if (hasPointer && idle) {
+      // Idle smoke from the resting flame (also while it's being blown out).
+      if (hasPointer && (idle || ext > 0.3)) {
         smokeAccumulator += dt
-        if (smokeAccumulator > 90 && Math.random() < 0.4 + burn * 0.6) {
+        if (smokeAccumulator > 90 && Math.random() < 0.4 + burn * 0.6 + ext) {
           smokeAccumulator = 0
           spawnSmoke(flame.x, flame.y)
         }

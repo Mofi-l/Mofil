@@ -19,7 +19,7 @@ const _headProj = new THREE.Vector3()
  * passes a `scrollRef` (0..1 progress) and a `targetRotation` that we ease
  * toward on each frame.
  */
-export default function MonkModel({ scrollRef, groupRef, onReady }) {
+export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef }) {
   const { scene } = useGLTF(MODEL_URL)
   const innerRef = useRef()
   const bobRef = useRef(0)
@@ -144,7 +144,25 @@ export default function MonkModel({ scrollRef, groupRef, onReady }) {
       const RADIUS = 0.42 // how close (in NDC) the torch must get to engage
       let prox = ndc.active ? Math.max(0, 1 - dist / RADIUS) : 0
       prox = prox * prox * (3 - 2 * prox) // smoothstep ease
-      const targetBow = prox * 0.785 // radians (~45° — a natural bow)
+
+      // "Blow out, then bow" sequence:
+      //  - The flame extinguishes quickly as the torch nears the face
+      //    (sharper curve, reaches 1 before full proximity).
+      //  - The head bows a touch behind the snuff, as if lowering after the
+      //    breath puts the flame out.
+      if (extinguishRef) {
+        const snuff = Math.min(1, prox * 1.6) // flame dies early/fast
+        extinguishRef.current = THREE.MathUtils.damp(
+          extinguishRef.current ?? 0,
+          snuff,
+          10,
+          delta
+        )
+      }
+      // Bow follows once the flame is mostly out.
+      const ext = extinguishRef?.current ?? prox
+      const bowDrive = prox * Math.max(0, (ext - 0.3) / 0.7) // lag behind snuff
+      const targetBow = bowDrive * 0.785 // radians (~45° — a natural bow)
       headRef.current.rotation.x = THREE.MathUtils.damp(
         headRef.current.rotation.x,
         targetBow,

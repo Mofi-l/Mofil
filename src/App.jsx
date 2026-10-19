@@ -9,6 +9,10 @@ export default function App() {
   // Shared scroll progress (0..1) read by the 3D scene every frame.
   // A ref (not state) avoids re-rendering React on every scroll tick.
   const scrollRef = useRef(0)
+  // Shared "blow out" signal (0 = flame burning, 1 = fully extinguished).
+  // MonkModel sets it from torch-to-face proximity; TorchCursor reads it to
+  // snuff the flame + puff smoke, so the blow-out syncs with the head bow.
+  const extinguishRef = useRef(0)
   const [active, setActive] = useState(0)
   const [loaded, setLoaded] = useState(false)
 
@@ -52,10 +56,10 @@ export default function App() {
 
   return (
     <>
-      <Scene scrollRef={scrollRef} onReady={handleReady} />
+      <Scene scrollRef={scrollRef} onReady={handleReady} extinguishRef={extinguishRef} />
       <div className="vignette" />
       <Overlay active={active} onNavigate={navigate} />
-      <TorchCursor />
+      <TorchCursor extinguishRef={extinguishRef} />
 
       <div className={`loader ${loaded ? 'is-hidden' : ''}`}>
         <div className="loader__ring" />
