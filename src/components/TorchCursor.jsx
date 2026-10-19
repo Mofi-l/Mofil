@@ -192,18 +192,26 @@ export default function TorchCursor({ extinguishRef, facePosRef }) {
       }
 
       // ── Breath puff (normal blending): pale wisps blown from the mouth
-      // that slow down and fade as they reach the flame.
+      // that HOME toward the live flame (mouse) position, so the breath always
+      // reaches the torch wherever the pointer is, and snuffs it.
       for (let i = breath.length - 1; i >= 0; i--) {
         const p = breath[i]
         p.life += dt
         const tt = p.life / p.maxLife
         if (tt >= 1) { breath.splice(i, 1); continue }
+        // Steer velocity toward the current flame position each frame.
+        const toX = flame.x - p.x
+        const toY = flame.y - p.y
+        const d = Math.hypot(toX, toY) || 1
+        const steer = 0.45
+        p.vx += (toX / d) * steer
+        p.vy += (toY / d) * steer
+        p.vx *= 0.9 // drag so it eases in rather than overshooting
+        p.vy *= 0.9
         p.x += p.vx
         p.y += p.vy
-        p.vx *= 0.94 // air drag — breath disperses
-        p.vy *= 0.94
-        const grow = p.size * (1 + tt * 2.2)
-        const alpha = Math.sin(Math.min(tt, 1) * Math.PI) * 0.2
+        const grow = p.size * (1 + tt * 2.0)
+        const alpha = Math.sin(Math.min(tt, 1) * Math.PI) * 0.22
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, grow)
         g.addColorStop(0, `rgba(222,230,240,${alpha})`)
         g.addColorStop(1, 'rgba(222,230,240,0)')
