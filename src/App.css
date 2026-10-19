@@ -238,6 +238,16 @@
   width: 1.6rem;
   height: 1.6rem;
   object-fit: contain;
+  /* Force the colored brand SVGs to flat white to match the Font Awesome
+     icons; they pick up the ember hover tint via opacity like the rest. */
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+}
+.skill-card:hover .skill-card__icon img {
+  /* ember tint on hover, matching the FA icons' color shift */
+  filter: brightness(0) saturate(100%) invert(55%) sepia(60%)
+    saturate(1200%) hue-rotate(340deg) brightness(101%) contrast(101%);
+  opacity: 1;
 }
 .skill-card:hover .skill-card__icon {
   color: var(--ember);

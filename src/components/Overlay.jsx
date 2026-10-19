@@ -145,7 +145,7 @@ export default function Overlay({ active, onNavigate }) {
 
       {/* PROJECTS — character faces back, centered; content centered */}
       <section className="section section--center" id="projects">
-        <div className="panel panel--wide panel--center">
+        <div className="panel panel--wide panel--center panel--tall">
           <h2 className="section-heading">{projects.heading}</h2>
           <div className="project-grid">
             {projects.items.map((p) => (
