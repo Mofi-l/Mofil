@@ -109,16 +109,35 @@ export default function Overlay({ active, onNavigate }) {
       <section className="section section--right" id="skills">
         <div className="panel panel--tall">
           <h2 className="section-heading">{skills.heading}</h2>
-          <div className="skill-groups">
-            {skills.groups.map((g) => (
-              <div className="skill-group" key={g.label}>
-                <h3 className="skill-group__label">{g.label}</h3>
-                <ul className="skill-list">
-                  {g.items.map((it) => (
-                    <li key={it}>{it}</li>
-                  ))}
-                </ul>
+
+          <h3 className="skill-group__label">{skills.technical.label}</h3>
+          <div className="skill-grid">
+            {skills.technical.items.map((it) => (
+              <div className="skill-card" key={it.name}>
+                <span className="skill-card__icon">
+                  {it.img ? (
+                    <img
+                      src={`${import.meta.env.BASE_URL}${it.img}`}
+                      alt=""
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <i className={it.fa} aria-hidden="true" />
+                  )}
+                </span>
+                <span className="skill-card__name">{it.name}</span>
               </div>
+            ))}
+          </div>
+
+          <h3 className="skill-group__label skill-group__label--mt">
+            {skills.core.label}
+          </h3>
+          <div className="skill-list skill-list--cloud">
+            {skills.core.items.map((it) => (
+              <span className="tag" key={it}>
+                {it}
+              </span>
             ))}
           </div>
         </div>

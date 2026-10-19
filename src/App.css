@@ -197,11 +197,67 @@
   color: var(--ember);
   margin-bottom: 0.7rem;
 }
+.skill-group__label--mt {
+  margin-top: 1.8rem;
+}
+
+/* Technical proficiency — icon card grid */
+.skill-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 0.6rem;
+}
+.skill-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9rem 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.025);
+  transition: transform 0.2s ease, border-color 0.2s ease,
+    background 0.2s ease;
+}
+.skill-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--blood);
+  background: rgba(193, 18, 31, 0.08);
+}
+.skill-card__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.6rem;
+}
+.skill-card__icon img {
+  width: 1.6rem;
+  height: 1.6rem;
+  object-fit: contain;
+}
+.skill-card:hover .skill-card__icon {
+  color: var(--ember);
+}
+.skill-card__name {
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-dim);
+  text-align: center;
+}
+
 .skill-list {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+.skill-list--cloud .tag {
+  font-size: 0.78rem;
+  padding: 0.4rem 0.8rem;
 }
 .skill-list li {
   font-size: 0.85rem;

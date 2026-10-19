@@ -55,28 +55,38 @@ export const content = {
     ],
   },
 
-  // Skills section — grouped "disciplines"
+  // Skills section — "Disciplines". Technical items render as an icon grid;
+  // core competencies render as tags. Icons are either a Font Awesome class
+  // (`fa`) or a local SVG path (`img`, under public/icons/).
   skills: {
     heading: 'Disciplines',
-    groups: [
-      {
-        label: 'Technical Proficiency',
-        items: [
-          'JavaScript', 'SQL', 'AWS', 'PowerBI', 'Excel', 'HTML/CSS',
-          'JSON', 'Minitab', 'Lambda', 'Amazon Nova', 'Amazon Quick',
-          'Kiro', 'VBA',
-        ],
-      },
-      {
-        label: 'Core Competencies',
-        items: [
-          'Process Improvement', 'Project Management', 'Data Analysis',
-          'Leadership', 'Problem Solving', 'Strategic Planning',
-          'Team Management', 'Automation', 'Markdown', 'MS Access',
-          'PowerPoint', 'Canva',
-        ],
-      },
-    ],
+    technical: {
+      label: 'Technical Proficiency',
+      items: [
+        { name: 'JavaScript', fa: 'fab fa-js-square' },
+        { name: 'SQL', fa: 'fas fa-database' },
+        { name: 'AWS', fa: 'fab fa-aws' },
+        { name: 'PowerBI', fa: 'fas fa-chart-bar' },
+        { name: 'Excel', fa: 'fas fa-file-excel' },
+        { name: 'HTML/CSS', fa: 'fab fa-html5' },
+        { name: 'JSON', fa: 'fas fa-code' },
+        { name: 'Minitab', fa: 'fas fa-calculator' },
+        { name: 'Lambda', fa: 'fas fa-bolt' },
+        { name: 'Amazon Nova', img: 'icons/amazon-nova.svg' },
+        { name: 'Amazon Quick', img: 'icons/amazon-quick.svg' },
+        { name: 'Kiro', img: 'icons/kiro.svg' },
+        { name: 'VBA', fa: 'fas fa-file-code' },
+      ],
+    },
+    core: {
+      label: 'Core Competencies',
+      items: [
+        'Process Improvement', 'Project Management', 'Data Analysis',
+        'Leadership', 'Problem Solving', 'Strategic Planning',
+        'Team Management', 'Automation', 'Markdown', 'MS Access',
+        'PowerPoint', 'Canva',
+      ],
+    },
   },
 
   // Projects / "Contracts" section
