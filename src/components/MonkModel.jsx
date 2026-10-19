@@ -30,15 +30,16 @@ export default function MonkModel({ scrollRef, groupRef }) {
         o.frustumCulled = false
         const m = o.material
         if (m && !m.userData.__tuned) {
-          // The model ships as a single fully-metallic material (metalness 1),
-          // so the robe only reflected the (blue) environment and read as flat
-          // grey metal. Drop metalness so the cloth becomes matte and takes
-          // diffuse light from the key/rim (folds catch light, flats go black —
-          // a proper ninja look), and deepen the albedo toward black.
-          if (m.color) m.color.multiplyScalar(0.95)
-          if (m.metalness !== undefined) m.metalness = 0.25
-          if (m.roughness !== undefined) m.roughness = Math.min((m.roughness ?? 0.8) + 0.08, 1)
-          m.envMapIntensity = 0.9
+          // The model ships as one fully-metallic material for the whole
+          // character, so the robe reflected the environment and read as a lit
+          // grey/brown. Crush the albedo toward black and make the cloth fully
+          // matte so it reads as true ninja black — folds just barely catch the
+          // key/rim light, flats fall to black. We also cut the environment
+          // contribution so it stops picking up grey from the night preset.
+          if (m.color) m.color.multiplyScalar(0.18) // ~82% darker albedo
+          if (m.metalness !== undefined) m.metalness = 0.05 // matte cloth
+          if (m.roughness !== undefined) m.roughness = 0.92 // soft, non-shiny
+          m.envMapIntensity = 0.25
           m.needsUpdate = true
           m.userData.__tuned = true
         }
