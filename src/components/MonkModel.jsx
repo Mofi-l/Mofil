@@ -144,7 +144,7 @@ export default function MonkModel({ scrollRef, groupRef, onReady }) {
       const RADIUS = 0.42 // how close (in NDC) the torch must get to engage
       let prox = ndc.active ? Math.max(0, 1 - dist / RADIUS) : 0
       prox = prox * prox * (3 - 2 * prox) // smoothstep ease
-      const targetBow = prox * 1.4 // radians (~80° — a full face-hiding bow)
+      const targetBow = prox * 0.785 // radians (~45° — a natural bow)
       headRef.current.rotation.x = THREE.MathUtils.damp(
         headRef.current.rotation.x,
         targetBow,
