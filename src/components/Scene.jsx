@@ -1,9 +1,49 @@
-import { Suspense, useRef } from 'react'
+import { Suspense, useRef, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows } from '@react-three/drei'
 import * as THREE from 'three'
 import MonkModel from './MonkModel'
 import Embers from './Embers'
+import Smoke from './Smoke'
+
+/**
+ * A soft light that eases toward the cursor, in front of the character, so
+ * moving the mouse rakes extra light across the robe and reveals more detail.
+ * The canvas sits behind the HTML overlay, so we read the pointer from a
+ * window listener rather than R3F's own (canvas-only) pointer events.
+ */
+function CursorLight() {
+  const lightRef = useRef()
+  const ndc = useRef({ x: 0, y: 0.1 })
+  const target = useRef(new THREE.Vector3(0, 0.4, 2.6))
+
+  useEffect(() => {
+    const onMove = (e) => {
+      ndc.current.x = (e.clientX / window.innerWidth) * 2 - 1
+      ndc.current.y = -((e.clientY / window.innerHeight) * 2 - 1)
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [])
+
+  useFrame((_, delta) => {
+    if (!lightRef.current) return
+    // Map the cursor to a region just in front of the bust.
+    target.current.set(ndc.current.x * 3.4, 0.4 + ndc.current.y * 2.4, 2.6)
+    const a = 1 - Math.pow(0.0015, delta) // frame-rate independent easing
+    lightRef.current.position.lerp(target.current, a)
+  })
+
+  return (
+    <pointLight
+      ref={lightRef}
+      intensity={1.5}
+      distance={9}
+      decay={2}
+      color="#dCE6FF"
+    />
+  )
+}
 
 /**
  * Camera rig: eases the camera toward per-section framing based on the
@@ -62,17 +102,18 @@ export default function Scene({ scrollRef }) {
       {/* Lighting: brighter cold key for form, a cool rim/back light to carve
           the silhouette out of the void (so the character reads even on bright
           displays / in bright rooms), warm ember rim + blood-red accent below. */}
-      <ambientLight intensity={0.5} color="#5c6a85" />
+      <ambientLight intensity={0.6} color="#585863" />
       <directionalLight
         position={[3, 4, 2]}
-        intensity={2.4}
-        color="#c6d2e6"
+        intensity={4.0}
+        color="#d0d8e6"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
       />
-      {/* Cool rim/back light behind the figure for edge separation + detail. */}
-      <directionalLight position={[-2.5, 3.5, -4]} intensity={2.0} color="#9fb6da" />
+      {/* Silver rim/back light behind the figure for edge separation + detail
+          (near-neutral so it reads as moonlit silver on black cloth, not blue). */}
+      <directionalLight position={[-2.5, 3.5, -4]} intensity={3.6} color="#bfc0c8" />
       <spotLight
         position={[-4, 2, -2]}
         angle={0.6}
@@ -95,7 +136,9 @@ export default function Scene({ scrollRef }) {
         />
       </Suspense>
 
+      <Smoke count={14} />
       <Embers count={280} />
+      <CursorLight />
       <CameraRig scrollRef={scrollRef} />
     </Canvas>
   )
