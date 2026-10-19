@@ -26,7 +26,10 @@
 }
 .section--hero {
   justify-content: center;
+  align-items: flex-start; /* push hero text to the top, above the character */
   text-align: center;
+  padding-top: 7vh;
+  position: relative;
 }
 
 /* ── Hero ── */
@@ -103,7 +106,10 @@
 }
 
 .scroll-hint {
-  margin-top: 4rem;
+  position: absolute;
+  bottom: 5vh;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;

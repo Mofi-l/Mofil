@@ -15,10 +15,11 @@ const MODEL_URL = `${import.meta.env.BASE_URL}models/monk-optimized.glb`
  * passes a `scrollRef` (0..1 progress) and a `targetRotation` that we ease
  * toward on each frame.
  */
-export default function MonkModel({ scrollRef, groupRef }) {
+export default function MonkModel({ scrollRef, groupRef, onReady }) {
   const { scene } = useGLTF(MODEL_URL)
   const innerRef = useRef()
   const bobRef = useRef(0)
+  const readyRef = useRef(false)
 
   // Enhance materials once: deepen shadows, add a touch of sheen so the
   // dark-fantasy rim light reads well.
@@ -63,6 +64,13 @@ export default function MonkModel({ scrollRef, groupRef }) {
   // Keyframes per stage: [xOffset (world units), yaw (radians)]
   useFrame((state, delta) => {
     bobRef.current += delta
+
+    // Signal readiness after the first rendered frame — the model is now
+    // actually visible (geometry + textures uploaded), not just downloaded.
+    if (!readyRef.current) {
+      readyRef.current = true
+      onReady?.()
+    }
 
     const scroll = scrollRef?.current ?? 0
     const stageCount = STAGES.length - 1

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useProgress } from '@react-three/drei'
 import Scene from './components/Scene'
 import Overlay from './components/Overlay'
 import TorchCursor from './components/TorchCursor'
@@ -35,20 +34,14 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Hold the loader until the 3D model has actually finished loading, so the
-  // character is on screen the instant the content is revealed (no pop-in).
-  const { active: loadingActive, progress } = useProgress()
-  useEffect(() => {
-    if (loaded) return
-    if (!loadingActive && progress >= 100) {
-      const t = setTimeout(() => setLoaded(true), 300) // brief grace for the fade
-      return () => clearTimeout(t)
-    }
-  }, [loadingActive, progress, loaded])
+  // Hide the loader only once the character has actually rendered its first
+  // frame (geometry + textures on the GPU), so there's no gap between the
+  // loader disappearing and the character appearing. MonkModel fires onReady.
+  const handleReady = () => setLoaded(true)
 
   // Safety net: never let the loader stick if an asset stalls.
   useEffect(() => {
-    const safety = setTimeout(() => setLoaded(true), 9000)
+    const safety = setTimeout(() => setLoaded(true), 12000)
     return () => clearTimeout(safety)
   }, [])
 
@@ -59,7 +52,7 @@ export default function App() {
 
   return (
     <>
-      <Scene scrollRef={scrollRef} />
+      <Scene scrollRef={scrollRef} onReady={handleReady} />
       <div className="vignette" />
       <Overlay active={active} onNavigate={navigate} />
       <TorchCursor />
