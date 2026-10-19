@@ -44,16 +44,35 @@
 
 .hero-name {
   font-family: var(--font-display);
-  font-size: clamp(2.6rem, 8vw, 6rem);
+  /* Smaller + non-wrapping so "Abdul Mofil" stays on one line. */
+  font-size: clamp(2rem, 6vw, 4.4rem);
   font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+.hero-name__first {
   background: linear-gradient(180deg, #f3efe9 0%, #8a8178 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  text-shadow: 0 0 48px rgba(226, 54, 54, 0.15);
+}
+/* "Mofil" set apart: blood-ember gradient + glow so the surname stands out. */
+.hero-name__last {
+  background: linear-gradient(180deg, #ff6b35 0%, #c1121f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 36px rgba(226, 54, 54, 0.35);
+  font-style: italic;
+}
+
+/* Narrow screens: allow the name to wrap so it never clips off-screen. */
+@media (max-width: 560px) {
+  .hero-name {
+    white-space: normal;
+  }
 }
 
 .hero-title-swap {
