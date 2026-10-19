@@ -10,8 +10,6 @@ const MODEL_URL = `${import.meta.env.BASE_URL}models/monk-optimized.glb`
 // Reusable scratch vectors for projecting the head to screen space.
 const _headWorld = new THREE.Vector3()
 const _headProj = new THREE.Vector3()
-const _mouthWorld = new THREE.Vector3()
-const _mouthProj = new THREE.Vector3()
 
 /**
  * The shadow-monk character, framed as a bust (head → chest).
@@ -21,7 +19,7 @@ const _mouthProj = new THREE.Vector3()
  * passes a `scrollRef` (0..1 progress) and a `targetRotation` that we ease
  * toward on each frame.
  */
-export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef, facePosRef }) {
+export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef }) {
   const { scene } = useGLTF(MODEL_URL)
   const innerRef = useRef()
   const bobRef = useRef(0)
@@ -141,18 +139,6 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef,
       headRef.current.getWorldPosition(_headWorld)
       _headProj.copy(_headWorld).project(state.camera)
 
-      // Publish the MOUTH position in screen pixels. The head joint sits at the
-      // neck; the mouth is higher, so raise the point in world space (world +Y
-      // is up on screen) before projecting — this stays correct as the camera
-      // dollies, unlike a fixed pixel offset.
-      if (facePosRef) {
-        _mouthWorld.copy(_headWorld)
-        _mouthWorld.y += 0.22 // world units up from neck → mouth
-        _mouthProj.copy(_mouthWorld).project(state.camera)
-        const sx = (_mouthProj.x * 0.5 + 0.5) * window.innerWidth
-        const sy = (-(_mouthProj.y) * 0.5 + 0.5) * window.innerHeight
-        facePosRef.current = { x: sx, y: sy, visible: _mouthProj.z < 1 }
-      }
 
       const dx = ndc.x - _headProj.x
       const dy = ndc.y - _headProj.y

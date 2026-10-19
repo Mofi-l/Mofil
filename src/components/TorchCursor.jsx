@@ -17,7 +17,7 @@ import { useEffect, useRef } from 'react'
  * Full-screen <canvas> above the 3D scene; additive blending for fire/trail,
  * normal blending for smoke.
  */
-export default function TorchCursor({ extinguishRef, facePosRef }) {
+export default function TorchCursor({ extinguishRef }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -53,26 +53,6 @@ export default function TorchCursor({ extinguishRef, facePosRef }) {
 
     const fire = [] // embers
     const smoke = [] // idle smoke wisps
-    const breath = [] // puff of breath blown from the mouth at the flame
-
-    // Blow a cone of pale breath from (fx,fy) toward (tx,ty).
-    const spawnBreath = (fx, fy, tx, ty, n = 26) => {
-      const ang = Math.atan2(ty - fy, tx - fx)
-      for (let i = 0; i < n; i++) {
-        const spread = (Math.random() - 0.5) * 0.5 // cone spread
-        const a = ang + spread
-        const speed = 2.6 + Math.random() * 3.4
-        breath.push({
-          x: fx + (Math.random() - 0.5) * 6,
-          y: fy + (Math.random() - 0.5) * 6,
-          vx: Math.cos(a) * speed,
-          vy: Math.sin(a) * speed,
-          life: 0,
-          maxLife: 420 + Math.random() * 320,
-          size: 3 + Math.random() * 5,
-        })
-      }
-    }
 
     const IDLE_MS = 320
     const BURN_START_MS = 30000
@@ -134,17 +114,12 @@ export default function TorchCursor({ extinguishRef, facePosRef }) {
         burn = Math.max(0, 1 - (idleFor - BURN_START_MS) / BURN_FADE_MS)
       }
       // Blow-out: the character snuffing the torch drives this toward 1,
-      // which crushes the flame. A rising edge puffs a burst of smoke.
+      // which crushes the flame.
       const ext = extinguishRef?.current ?? 0
       burn *= Math.max(0, 1 - ext)
-      if (ext > 0.5 && prevExt <= 0.5 && hasPointer) {
-        for (let k = 0; k < 2; k++) spawnSmoke(flame.x, flame.y)
-        // Visible breath from the mouth toward the flame.
-        const face = facePosRef?.current
-        if (face && face.visible) {
-          spawnBreath(face.x, face.y, flame.x, flame.y)
-        }
-      }
+      // Once the torch is going out, stop any smoke and clear what's lingering
+      // so no smoke remains after it's extinguished.
+      if (ext > 0.4) smoke.length = 0
       prevExt = ext
 
       // Record the trail head.
@@ -186,36 +161,6 @@ export default function TorchCursor({ extinguishRef, facePosRef }) {
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, grow)
         g.addColorStop(0, `rgba(120,124,132,${alpha})`)
         g.addColorStop(1, 'rgba(120,124,132,0)')
-        ctx.fillStyle = g
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, grow, 0, Math.PI * 2)
-        ctx.fill()
-      }
-
-      // ── Breath puff (normal blending): pale wisps blown from the mouth
-      // that HOME toward the live flame (mouse) position, so the breath always
-      // reaches the torch wherever the pointer is, and snuffs it.
-      for (let i = breath.length - 1; i >= 0; i--) {
-        const p = breath[i]
-        p.life += dt
-        const tt = p.life / p.maxLife
-        if (tt >= 1) { breath.splice(i, 1); continue }
-        // Steer velocity toward the current flame position each frame.
-        const toX = flame.x - p.x
-        const toY = flame.y - p.y
-        const d = Math.hypot(toX, toY) || 1
-        const steer = 0.45
-        p.vx += (toX / d) * steer
-        p.vy += (toY / d) * steer
-        p.vx *= 0.9 // drag so it eases in rather than overshooting
-        p.vy *= 0.9
-        p.x += p.vx
-        p.y += p.vy
-        const grow = p.size * (1 + tt * 2.0)
-        const alpha = Math.sin(Math.min(tt, 1) * Math.PI) * 0.22
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, grow)
-        g.addColorStop(0, `rgba(222,230,240,${alpha})`)
-        g.addColorStop(1, 'rgba(222,230,240,0)')
         ctx.fillStyle = g
         ctx.beginPath()
         ctx.arc(p.x, p.y, grow, 0, Math.PI * 2)

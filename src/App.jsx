@@ -13,9 +13,6 @@ export default function App() {
   // MonkModel sets it from torch-to-face proximity; TorchCursor reads it to
   // snuff the flame + puff smoke, so the blow-out syncs with the head bow.
   const extinguishRef = useRef(0)
-  // Mouth/face position in screen pixels, written by MonkModel each frame, so
-  // the torch canvas can blow a puff of breath from the mouth toward the flame.
-  const facePosRef = useRef({ x: 0, y: 0, visible: false })
   const [active, setActive] = useState(0)
   const [loaded, setLoaded] = useState(false)
 
@@ -59,10 +56,10 @@ export default function App() {
 
   return (
     <>
-      <Scene scrollRef={scrollRef} onReady={handleReady} extinguishRef={extinguishRef} facePosRef={facePosRef} />
+      <Scene scrollRef={scrollRef} onReady={handleReady} extinguishRef={extinguishRef} />
       <div className="vignette" />
       <Overlay active={active} onNavigate={navigate} />
-      <TorchCursor extinguishRef={extinguishRef} facePosRef={facePosRef} />
+      <TorchCursor extinguishRef={extinguishRef} />
 
       <div className={`loader ${loaded ? 'is-hidden' : ''}`}>
         <div className="loader__ring" />
