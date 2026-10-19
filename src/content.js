@@ -144,7 +144,7 @@ export const content = {
     body: 'Open to new contracts and collaborations.',
     email: 'abdul1mofil@gmail.com',
     socials: [
-      { label: 'GitHub', url: 'https://github.com/Mofi-l/Portfolio' },
+      { label: 'GitHub', url: 'https://github.com/Mofi-l/Mofil' },
       {
         label: 'Builder Portfolio',
         url: 'https://canopy.fgbs.amazon.dev/apps/espr-innovation-center/#/profile/mofila',
