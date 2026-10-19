@@ -104,19 +104,26 @@ export default function MonkModel({ scrollRef, groupRef }) {
 const MODEL_SCALE = 3.4
 const BASE_Y = -2.55
 
-// Per-section staging keyframes: [horizontal offset, yaw].
+// Per-section staging keyframes: [horizontal offset, yaw]. One entry per
+// section: hero, about, skills, projects, contact.
+//
 //  +x = screen right, -x = screen left.
-//  yaw sign/size is set so the character clearly turns to face the content
-//  (near-profile, across the frame):
-//    slid left  → content on right → face right (+~65°)
-//    slid right → content on left  → face left  (-~65°)
-//  yaw: 0 = front, Math.PI = facing away (back).
+//
+//  Yaw is a CONTINUOUS, monotonically-increasing path so the character keeps
+//  turning the SAME direction and physically pivots around (through his back)
+//  between sections — instead of swinging back through the front each time.
+//  Facing equivalents (mod 2π):
+//    0             = front
+//    +1.15         = faces screen-right (right profile)
+//    π  (3.14)     = faces away (back)
+//    2π-1.15 (5.13)= faces screen-left  (left profile)
+//    2π (6.28)     = front again
 const STAGES = [
-  [0, 0], // hero     — front, center
-  [-1.7, 1.15], // about    — slide left,  face right → content right
-  [1.7, -1.15], // skills   — slide right, face left  → content left
-  [0, Math.PI], // projects — face back, center
-  [0, 0], // contact  — front, center
+  [0, 0], //              hero     — front, center
+  [-1.7, 1.15], //              about    — slide left,  face right → content right
+  [1.7, 2 * Math.PI - 1.15], //  skills   — slide right, face left (turns around via his back)
+  [0, 2 * Math.PI], //              projects — front-ish, center (completes the turn)
+  [0, 2 * Math.PI], //              contact  — front, center
 ]
 
 // Smootherstep easing (0..1) for buttery transitions between stages.
