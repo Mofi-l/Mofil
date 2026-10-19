@@ -33,9 +33,9 @@ export default function Smoke({ count = 14 }) {
     const positions = new Float32Array(count * 3)
     const speeds = new Float32Array(count)
     for (let i = 0; i < count; i++) {
-      positions[i * 3 + 0] = (Math.random() - 0.5) * 13
+      positions[i * 3 + 0] = (Math.random() - 0.5) * 12
       positions[i * 3 + 1] = (Math.random() - 0.5) * 10
-      positions[i * 3 + 2] = -3 - Math.random() * 4 // kept behind the character
+      positions[i * 3 + 2] = -0.5 - Math.random() * 4 // around/behind the character, close enough to beat the fog
       speeds[i] = 0.15 + Math.random() * 0.25
     }
     return { positions, speeds }
@@ -58,7 +58,7 @@ export default function Smoke({ count = 14 }) {
     // Breathe the whole haze in and out so it reads as rising + clearing.
     if (matRef.current) {
       const t = state.clock.getElapsedTime()
-      matRef.current.opacity = 0.07 + (Math.sin(t * 0.18) * 0.5 + 0.5) * 0.06
+      matRef.current.opacity = 0.14 + (Math.sin(t * 0.18) * 0.5 + 0.5) * 0.12
     }
   })
 
@@ -75,11 +75,12 @@ export default function Smoke({ count = 14 }) {
       <pointsMaterial
         ref={matRef}
         map={texture}
-        size={5.5}
-        color={new THREE.Color('#5a6474')}
+        size={6}
+        color={new THREE.Color('#848ea2')}
         transparent
-        opacity={0.1}
+        opacity={0.2}
         depthWrite={false}
+        fog={false}
         blending={THREE.NormalBlending}
         sizeAttenuation
       />

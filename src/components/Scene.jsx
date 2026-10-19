@@ -37,10 +37,10 @@ function CursorLight() {
   return (
     <pointLight
       ref={lightRef}
-      intensity={1.5}
-      distance={9}
+      intensity={18}
+      distance={14}
       decay={2}
-      color="#dCE6FF"
+      color="#e9f0ff"
     />
   )
 }
