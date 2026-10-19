@@ -7,6 +7,10 @@ import * as THREE from 'three'
 // (e.g. /Mofil/models/... on GitHub Pages) as well as at root in dev.
 const MODEL_URL = `${import.meta.env.BASE_URL}models/monk-optimized.glb`
 
+// Reusable scratch vectors for projecting the head to screen space.
+const _headWorld = new THREE.Vector3()
+const _headProj = new THREE.Vector3()
+
 /**
  * The shadow-monk character, framed as a bust (head → chest).
  *
@@ -123,27 +127,28 @@ export default function MonkModel({ scrollRef, groupRef, onReady }) {
       innerRef.current.position.y = BASE_Y + Math.sin(bobRef.current * 0.8) * 0.015
     }
 
-    // ── Head nod toward the torch ──
-    // When the torch (cursor) is near the character's face (upper-centre of
-    // the screen), nod the HEAD BONE forward — real skinned deformation, so
-    // only the head/hood moves, not the whole body. Eases back to neutral as
-    // the torch moves away, and only on front-facing sections.
+    // ── Head bow toward the torch ──
+    // When the torch (cursor) comes up to the character's face, the head/hood
+    // bows DOWN — a deep bow that drops the face so the light rakes over the
+    // hood (real skinned deformation; only the head moves). We anchor the
+    // trigger on the head joint's ACTUAL screen position (projected each
+    // frame) so it works wherever the character is framed.
     if (headRef.current) {
       const ndc = ndcRef.current
-      const scrollNow = scrollRef?.current ?? 0
-      const FACE_X = 0
-      const FACE_Y = 0.5
-      const dist = Math.hypot(ndc.x - FACE_X, ndc.y - FACE_Y)
-      const RADIUS = 0.55
+      // World position of the head joint → normalized device coords.
+      headRef.current.getWorldPosition(_headWorld)
+      _headProj.copy(_headWorld).project(state.camera)
+      const dx = ndc.x - _headProj.x
+      const dy = ndc.y - _headProj.y
+      const dist = Math.hypot(dx, dy)
+      const RADIUS = 0.42 // how close (in NDC) the torch must get to engage
       let prox = ndc.active ? Math.max(0, 1 - dist / RADIUS) : 0
-      prox = prox * prox
-      const facing = Math.cos(scrollNow * Math.PI * 2) * 0.5 + 0.5 // 1 front → 0 back
-      prox *= facing
-      const targetNod = prox * 0.5 // radians (~29° max)
+      prox = prox * prox * (3 - 2 * prox) // smoothstep ease
+      const targetBow = prox * 1.4 // radians (~80° — a full face-hiding bow)
       headRef.current.rotation.x = THREE.MathUtils.damp(
         headRef.current.rotation.x,
-        targetNod,
-        6,
+        targetBow,
+        5,
         delta
       )
     }
