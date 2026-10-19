@@ -45,7 +45,7 @@ export default function Scene({ scrollRef }) {
       shadows
       dpr={[1, 1.8]}
       camera={{ position: [0, 0.3, 4.2], fov: 38, near: 0.1, far: 100 }}
-      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }}
+      gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.22 }}
       style={{
         position: 'fixed',
         inset: 0,
@@ -57,25 +57,30 @@ export default function Scene({ scrollRef }) {
       {/* Deep fog fades the lower body + background into the void,
           reinforcing the chest-up bust framing. */}
       <color attach="background" args={['#07070a']} />
-      <fog attach="fog" args={['#07070a', 4, 11]} />
+      <fog attach="fog" args={['#07070a', 4.5, 13]} />
 
-      {/* Lighting: cold key, warm ember rim, blood-red accent from below. */}
-      <ambientLight intensity={0.25} color="#4a5568" />
+      {/* Lighting: brighter cold key for form, a cool rim/back light to carve
+          the silhouette out of the void (so the character reads even on bright
+          displays / in bright rooms), warm ember rim + blood-red accent below. */}
+      <ambientLight intensity={0.5} color="#5c6a85" />
       <directionalLight
         position={[3, 4, 2]}
-        intensity={1.6}
-        color="#aab4c8"
+        intensity={2.4}
+        color="#c6d2e6"
         castShadow
-        shadow-mapSize={[1024, 1024]}
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
       />
+      {/* Cool rim/back light behind the figure for edge separation + detail. */}
+      <directionalLight position={[-2.5, 3.5, -4]} intensity={2.0} color="#9fb6da" />
       <spotLight
         position={[-4, 2, -2]}
         angle={0.6}
         penumbra={1}
-        intensity={2.2}
+        intensity={2.4}
         color="#ff6b35"
       />
-      <pointLight position={[0, -1.5, 2]} intensity={1.2} color="#c1121f" />
+      <pointLight position={[0, -1.5, 2]} intensity={1.3} color="#c1121f" />
 
       <Suspense fallback={null}>
         <MonkModel scrollRef={scrollRef} groupRef={groupRef} />

@@ -30,9 +30,9 @@ export default function MonkModel({ scrollRef, groupRef }) {
         o.frustumCulled = false
         const m = o.material
         if (m) {
-          m.envMapIntensity = 0.6
+          m.envMapIntensity = 1.15
           if (m.metalness !== undefined) m.metalness = Math.min(m.metalness + 0.1, 1)
-          if (m.roughness !== undefined) m.roughness = Math.max(m.roughness - 0.05, 0.3)
+          if (m.roughness !== undefined) m.roughness = Math.max(m.roughness - 0.08, 0.28)
           m.needsUpdate = true
         }
       }
