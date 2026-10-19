@@ -70,7 +70,7 @@ export default function Overlay({ active, onNavigate }) {
 
       {/* EXPERIENCE — character slides right & faces left, so content sits left */}
       <section className="section section--left" id="experience">
-        <div className="panel">
+        <div className="panel panel--tall">
           <h2 className="section-heading">{experience.heading}</h2>
           <ol className="timeline">
             {experience.items.map((e, i) => (
@@ -79,8 +79,26 @@ export default function Overlay({ active, onNavigate }) {
                   <span className="timeline__role">{e.role}</span>
                   <span className="timeline__period">{e.period}</span>
                 </div>
-                <div className="timeline__org">{e.org}</div>
-                <p className="timeline__desc">{e.desc}</p>
+                <div className="timeline__org">
+                  {e.org}
+                  {e.current && <span className="timeline__current">Current Role</span>}
+                </div>
+                {e.achievements && (
+                  <ul className="timeline__ach">
+                    {e.achievements.map((a, j) => (
+                      <li key={j}>{a}</li>
+                    ))}
+                  </ul>
+                )}
+                {e.awards && (
+                  <div className="timeline__awards">
+                    {e.awards.map((a) => (
+                      <span className="tag" key={a}>
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </li>
             ))}
           </ol>

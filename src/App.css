@@ -252,11 +252,65 @@
   font-size: 0.82rem;
   color: var(--mist);
   margin: 0.15rem 0 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+.timeline__current {
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(90deg, var(--blood), var(--blood-bright));
+  padding: 0.14rem 0.55rem;
+  border-radius: 2px;
 }
 .timeline__desc {
   font-size: 0.9rem;
   color: var(--ink-dim);
   line-height: 1.6;
+}
+.timeline__ach {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0.3rem 0 0.7rem;
+}
+.timeline__ach li {
+  position: relative;
+  padding-left: 0.9rem;
+  font-size: 0.86rem;
+  color: var(--ink-dim);
+  line-height: 1.55;
+}
+.timeline__ach li::before {
+  content: '◆';
+  position: absolute;
+  left: 0;
+  top: 0.05rem;
+  font-size: 0.55rem;
+  color: var(--ember);
+}
+.timeline__awards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* The experience panel holds a lot — let it grow wider and scroll if tall. */
+.panel--tall {
+  max-width: 560px;
+  max-height: 82vh;
+  overflow-y: auto;
+}
+.panel--tall::-webkit-scrollbar {
+  width: 6px;
+}
+.panel--tall::-webkit-scrollbar-thumb {
+  background: #26262f;
+  border-radius: 6px;
 }
 
 /* ── Projects ── */
