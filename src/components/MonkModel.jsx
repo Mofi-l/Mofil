@@ -19,7 +19,7 @@ const _headProj = new THREE.Vector3()
  * passes a `scrollRef` (0..1 progress) and a `targetRotation` that we ease
  * toward on each frame.
  */
-export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef }) {
+export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef, facePosRef }) {
   const { scene } = useGLTF(MODEL_URL)
   const innerRef = useRef()
   const bobRef = useRef(0)
@@ -138,6 +138,15 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
       // World position of the head joint → normalized device coords.
       headRef.current.getWorldPosition(_headWorld)
       _headProj.copy(_headWorld).project(state.camera)
+
+      // Publish the mouth position in screen pixels (a touch below the head
+      // joint) so the torch canvas can blow breath from here toward the flame.
+      if (facePosRef) {
+        const sx = (_headProj.x * 0.5 + 0.5) * window.innerWidth
+        const sy = (-(_headProj.y) * 0.5 + 0.5) * window.innerHeight + 26
+        facePosRef.current = { x: sx, y: sy, visible: _headProj.z < 1 }
+      }
+
       const dx = ndc.x - _headProj.x
       const dy = ndc.y - _headProj.y
       const dist = Math.hypot(dx, dy)

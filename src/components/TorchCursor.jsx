@@ -17,7 +17,7 @@ import { useEffect, useRef } from 'react'
  * Full-screen <canvas> above the 3D scene; additive blending for fire/trail,
  * normal blending for smoke.
  */
-export default function TorchCursor({ extinguishRef }) {
+export default function TorchCursor({ extinguishRef, facePosRef }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -53,6 +53,26 @@ export default function TorchCursor({ extinguishRef }) {
 
     const fire = [] // embers
     const smoke = [] // idle smoke wisps
+    const breath = [] // puff of breath blown from the mouth at the flame
+
+    // Blow a cone of pale breath from (fx,fy) toward (tx,ty).
+    const spawnBreath = (fx, fy, tx, ty, n = 26) => {
+      const ang = Math.atan2(ty - fy, tx - fx)
+      for (let i = 0; i < n; i++) {
+        const spread = (Math.random() - 0.5) * 0.5 // cone spread
+        const a = ang + spread
+        const speed = 2.6 + Math.random() * 3.4
+        breath.push({
+          x: fx + (Math.random() - 0.5) * 6,
+          y: fy + (Math.random() - 0.5) * 6,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          life: 0,
+          maxLife: 420 + Math.random() * 320,
+          size: 3 + Math.random() * 5,
+        })
+      }
+    }
 
     const IDLE_MS = 320
     const BURN_START_MS = 30000
@@ -119,6 +139,11 @@ export default function TorchCursor({ extinguishRef }) {
       burn *= Math.max(0, 1 - ext)
       if (ext > 0.5 && prevExt <= 0.5 && hasPointer) {
         for (let k = 0; k < 10; k++) spawnSmoke(flame.x, flame.y)
+        // Visible breath from the mouth toward the flame.
+        const face = facePosRef?.current
+        if (face && face.visible) {
+          spawnBreath(face.x, face.y, flame.x, flame.y)
+        }
       }
       prevExt = ext
 
@@ -166,8 +191,28 @@ export default function TorchCursor({ extinguishRef }) {
         ctx.fill()
       }
 
-      // ── Light trail, additive. A tapered chain of soft glows along the
-      // recent path: strongest at the head, fading to nothing at the tail.
+      // ── Breath puff (normal blending): pale wisps blown from the mouth
+      // that slow down and fade as they reach the flame.
+      for (let i = breath.length - 1; i >= 0; i--) {
+        const p = breath[i]
+        p.life += dt
+        const tt = p.life / p.maxLife
+        if (tt >= 1) { breath.splice(i, 1); continue }
+        p.x += p.vx
+        p.y += p.vy
+        p.vx *= 0.94 // air drag — breath disperses
+        p.vy *= 0.94
+        const grow = p.size * (1 + tt * 2.2)
+        const alpha = Math.sin(Math.min(tt, 1) * Math.PI) * 0.2
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, grow)
+        g.addColorStop(0, `rgba(222,230,240,${alpha})`)
+        g.addColorStop(1, 'rgba(222,230,240,0)')
+        ctx.fillStyle = g
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, grow, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
       ctx.globalCompositeOperation = 'lighter'
       if (hasPointer && burn > 0.02 && trail.length > 1) {
         // Longer, thinner streak when moving fast; tight glow when slow.
