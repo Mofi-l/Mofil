@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useProgress } from '@react-three/drei'
 import Scene from './components/Scene'
 import Overlay from './components/Overlay'
 import { sections } from './content'
@@ -33,10 +34,21 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Hide loader shortly after mount (model preloads via drei).
+  // Hold the loader until the 3D model has actually finished loading, so the
+  // character is on screen the instant the content is revealed (no pop-in).
+  const { active: loadingActive, progress } = useProgress()
   useEffect(() => {
-    const t = setTimeout(() => setLoaded(true), 1400)
-    return () => clearTimeout(t)
+    if (loaded) return
+    if (!loadingActive && progress >= 100) {
+      const t = setTimeout(() => setLoaded(true), 300) // brief grace for the fade
+      return () => clearTimeout(t)
+    }
+  }, [loadingActive, progress, loaded])
+
+  // Safety net: never let the loader stick if an asset stalls.
+  useEffect(() => {
+    const safety = setTimeout(() => setLoaded(true), 9000)
+    return () => clearTimeout(safety)
   }, [])
 
   const navigate = (i) => {
