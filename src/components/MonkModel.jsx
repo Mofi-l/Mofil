@@ -3,7 +3,9 @@ import { useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
-const MODEL_URL = '/models/monk-optimized.glb'
+// Prefix with Vite's base URL so the asset resolves under the deploy sub-path
+// (e.g. /Mofil/models/... on GitHub Pages) as well as at root in dev.
+const MODEL_URL = `${import.meta.env.BASE_URL}models/monk-optimized.glb`
 
 /**
  * The shadow-monk character, framed as a bust (head → chest).
