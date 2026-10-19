@@ -142,11 +142,13 @@ export const content = {
   contact: {
     heading: 'Summon Me',
     body: 'Open to new contracts and collaborations.',
-    email: 'you@example.com',
+    email: 'abdul1mofil@gmail.com',
     socials: [
-      { label: 'GitHub', url: 'https://github.com/yourname' },
-      { label: 'LinkedIn', url: 'https://linkedin.com/in/yourname' },
-      { label: 'X', url: 'https://x.com/yourname' },
+      { label: 'GitHub', url: 'https://github.com/Mofi-l/Portfolio' },
+      {
+        label: 'Builder Portfolio',
+        url: 'https://canopy.fgbs.amazon.dev/apps/espr-innovation-center/#/profile/mofila',
+      },
     ],
   },
 }
