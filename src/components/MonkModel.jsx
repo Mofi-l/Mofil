@@ -20,6 +20,34 @@ export default function MonkModel({ scrollRef, groupRef, onReady }) {
   const innerRef = useRef()
   const bobRef = useRef(0)
   const readyRef = useRef(false)
+  const headRef = useRef(null) // the "head_joint" bone, for the nod
+  // Cursor in normalized device coords (−1..1). Drives the head nod when the
+  // torch is brought up near the face.
+  const ndcRef = useRef({ x: 0, y: -1, active: false })
+
+  useEffect(() => {
+    const onMove = (e) => {
+      ndcRef.current.x = (e.clientX / window.innerWidth) * 2 - 1
+      ndcRef.current.y = -((e.clientY / window.innerHeight) * 2 - 1)
+      ndcRef.current.active = true
+    }
+    const onLeave = () => {
+      ndcRef.current.active = false
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    window.addEventListener('pointerleave', onLeave)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerleave', onLeave)
+    }
+  }, [])
+
+  // Locate the head joint (added during the auto-rig step).
+  useEffect(() => {
+    scene.traverse((o) => {
+      if (o.name === 'head_joint') headRef.current = o
+    })
+  }, [scene])
 
   // Enhance materials once: deepen shadows, add a touch of sheen so the
   // dark-fantasy rim light reads well.
@@ -93,6 +121,31 @@ export default function MonkModel({ scrollRef, groupRef, onReady }) {
     if (innerRef.current) {
       // gentle vertical "breathing"
       innerRef.current.position.y = BASE_Y + Math.sin(bobRef.current * 0.8) * 0.015
+    }
+
+    // ── Head nod toward the torch ──
+    // When the torch (cursor) is near the character's face (upper-centre of
+    // the screen), nod the HEAD BONE forward — real skinned deformation, so
+    // only the head/hood moves, not the whole body. Eases back to neutral as
+    // the torch moves away, and only on front-facing sections.
+    if (headRef.current) {
+      const ndc = ndcRef.current
+      const scrollNow = scrollRef?.current ?? 0
+      const FACE_X = 0
+      const FACE_Y = 0.5
+      const dist = Math.hypot(ndc.x - FACE_X, ndc.y - FACE_Y)
+      const RADIUS = 0.55
+      let prox = ndc.active ? Math.max(0, 1 - dist / RADIUS) : 0
+      prox = prox * prox
+      const facing = Math.cos(scrollNow * Math.PI * 2) * 0.5 + 0.5 // 1 front → 0 back
+      prox *= facing
+      const targetNod = prox * 0.5 // radians (~29° max)
+      headRef.current.rotation.x = THREE.MathUtils.damp(
+        headRef.current.rotation.x,
+        targetNod,
+        6,
+        delta
+      )
     }
   })
 
