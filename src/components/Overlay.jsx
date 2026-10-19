@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { content, sections } from '../content'
 
 /**
@@ -6,7 +7,16 @@ import { content, sections } from '../content'
  * cleanly onto the 3D camera / model choreography.
  */
 export default function Overlay({ active, onNavigate }) {
-  const { name, title, tagline, about, experience, skills, projects, contact } = content
+  const { name, title, intro, tagline, about, experience, skills, projects, contact } = content
+
+  // Hero sub-line: show the "intro" ("Shadow Monk") first, then swap to the
+  // real title after 5 seconds with a cross-fade.
+  const [showTitle, setShowTitle] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShowTitle(true), 5000)
+    return () => clearTimeout(t)
+  }, [])
+
 
   return (
     <div className="overlay">
@@ -30,7 +40,14 @@ export default function Overlay({ active, onNavigate }) {
         <div className="hero-inner">
           <p className="eyebrow">Portfolio of</p>
           <h1 className="hero-name">{name}</h1>
-          <p className="hero-title">{title}</p>
+          <div className="hero-title-swap">
+            <span className={`hero-title hero-title--intro ${showTitle ? 'is-hidden' : ''}`}>
+              {intro}
+            </span>
+            <span className={`hero-title ${showTitle ? '' : 'is-hidden'}`}>
+              {title}
+            </span>
+          </div>
           <p className="hero-tagline">{tagline}</p>
           <div className="scroll-hint">
             <span>scroll into the dark</span>

@@ -5,8 +5,10 @@
 
 export const content = {
   // Shown in the hero section
-  name: 'YOUR NAME',
-  title: 'Shadow Monk / Full-Stack Engineer',
+  name: 'Abdul Mofil',
+  title: 'Technical Specialist / Full-Stack Developer',
+  // First shown in the hero before the title swaps in (see Overlay hero).
+  intro: 'Shadow Monk',
   tagline: 'Moving unseen between design and code.',
 
   // About section
@@ -14,7 +16,7 @@ export const content = {
     heading: 'The Vow',
     body: [
       'I build in the quiet hours — crafting systems that feel effortless on the surface and are relentless underneath.',
-      'Replace this with a short story about who you are: your focus, your craft, and what drives you.',
+      'Transforming Selling Partner Support STAR-ESPR Org with data-driven process improvement and full-stack automation — turning manual workflows into AWS-powered web apps.',
     ],
   },
 
