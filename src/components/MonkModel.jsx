@@ -106,15 +106,15 @@ const BASE_Y = -2.55
 
 // Per-section staging keyframes: [horizontal offset, yaw].
 //  +x = screen right, -x = screen left.
-//  yaw sign is set so the character turns TOWARD the content (across the
-//  frame), not away from it:
-//    slid left  → content on right → turn toward right (+yaw)
-//    slid right → content on left  → turn toward left  (-yaw)
+//  yaw sign/size is set so the character clearly turns to face the content
+//  (near-profile, across the frame):
+//    slid left  → content on right → face right (+~65°)
+//    slid right → content on left  → face left  (-~65°)
 //  yaw: 0 = front, Math.PI = facing away (back).
 const STAGES = [
   [0, 0], // hero     — front, center
-  [-1.7, 0.6], // about    — slide left,  look right → content right
-  [1.7, -0.6], // skills   — slide right, look left  → content left
+  [-1.7, 1.15], // about    — slide left,  face right → content right
+  [1.7, -1.15], // skills   — slide right, face left  → content left
   [0, Math.PI], // projects — face back, center
   [0, 0], // contact  — front, center
 ]
