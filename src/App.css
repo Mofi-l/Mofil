@@ -51,21 +51,11 @@
   line-height: 1.05;
   text-transform: uppercase;
   white-space: nowrap;
-}
-.hero-name__first {
   background: linear-gradient(180deg, #f3efe9 0%, #8a8178 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-/* "Mofil" set apart: blood-ember gradient + glow so the surname stands out. */
-.hero-name__last {
-  background: linear-gradient(180deg, #ff6b35 0%, #c1121f 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 36px rgba(226, 54, 54, 0.35);
-  font-style: italic;
+  text-shadow: 0 0 48px rgba(226, 54, 54, 0.15);
 }
 
 /* Narrow screens: allow the name to wrap so it never clips off-screen. */
@@ -87,10 +77,11 @@
   right: 0;
   top: 0;
   text-align: center;
-  font-size: clamp(1rem, 2.4vw, 1.4rem);
+  font-size: clamp(0.78rem, 2.1vw, 1.3rem);
   color: var(--blood-bright);
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+  white-space: nowrap;
   transition: opacity 0.8s ease, transform 0.8s ease;
   opacity: 1;
 }

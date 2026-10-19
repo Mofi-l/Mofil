@@ -39,10 +39,7 @@ export default function Overlay({ active, onNavigate }) {
       <section className="section section--hero" id="hero">
         <div className="hero-inner">
           <p className="eyebrow">Portfolio of</p>
-          <h1 className="hero-name">
-            <span className="hero-name__first">Abdul</span>{' '}
-            <span className="hero-name__last">Mofil</span>
-          </h1>
+          <h1 className="hero-name">{name}</h1>
           <div className="hero-title-swap">
             <span className={`hero-title hero-title--intro ${showTitle ? 'is-hidden' : ''}`}>
               {intro}
