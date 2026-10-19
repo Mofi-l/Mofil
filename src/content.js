@@ -36,7 +36,7 @@ export const content = {
         awards: ['Lean Six Sigma Green Belt', 'Emerald GEM Award', 'Builder Award 2026'],
       },
       {
-        role: 'Selling Partner Support — CRS Mentor (L3)',
+        role: 'CRS Mentor — SPS L3',
         org: 'Amazon Chennai',
         period: '2021 — 24',
         achievements: [
