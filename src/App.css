@@ -26,17 +26,19 @@
 }
 .section--hero {
   justify-content: center;
-  align-items: flex-start; /* push hero text to the top, above the character */
+  align-items: center;
   text-align: center;
-  padding-top: 7vh;
   position: relative;
+}
+.hero-inner {
+  max-width: 820px;
+  /* Sit in the upper-middle: clearly above the character, but not jammed
+     against the top edge. */
+  transform: translateY(-14vh);
 }
 
 /* ── Hero ── */
 .hero-inner {
-  max-width: 760px;
-}
-
 .eyebrow {
   font-size: 0.8rem;
   letter-spacing: 0.5em;

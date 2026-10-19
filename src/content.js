@@ -59,9 +59,23 @@ export const content = {
   skills: {
     heading: 'Disciplines',
     groups: [
-      { label: 'Blades (Frontend)', items: ['React', 'TypeScript', 'Three.js', 'CSS / Motion'] },
-      { label: 'Shadows (Backend)', items: ['Node.js', 'Python', 'PostgreSQL', 'REST / GraphQL'] },
-      { label: 'Rituals (Infra)', items: ['AWS', 'Docker', 'CI/CD', 'Observability'] },
+      {
+        label: 'Technical Proficiency',
+        items: [
+          'JavaScript', 'SQL', 'AWS', 'PowerBI', 'Excel', 'HTML/CSS',
+          'JSON', 'Minitab', 'Lambda', 'Amazon Nova', 'Amazon Quick',
+          'Kiro', 'VBA',
+        ],
+      },
+      {
+        label: 'Core Competencies',
+        items: [
+          'Process Improvement', 'Project Management', 'Data Analysis',
+          'Leadership', 'Problem Solving', 'Strategic Planning',
+          'Team Management', 'Automation', 'Markdown', 'MS Access',
+          'PowerPoint', 'Canva',
+        ],
+      },
     ],
   },
 

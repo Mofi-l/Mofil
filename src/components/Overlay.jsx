@@ -107,7 +107,7 @@ export default function Overlay({ active, onNavigate }) {
 
       {/* SKILLS — character slides left & faces right, so content sits right */}
       <section className="section section--right" id="skills">
-        <div className="panel">
+        <div className="panel panel--tall">
           <h2 className="section-heading">{skills.heading}</h2>
           <div className="skill-groups">
             {skills.groups.map((g) => (
