@@ -46,30 +46,26 @@ function CursorLight() {
 }
 
 /**
- * Camera rig: eases the camera toward per-section framing based on the
- * shared scroll progress (0..1). Each section nudges the camera a little —
- * subtle dolly + orbit, matching the reference portfolio's restrained moves
- * rather than hard spins.
+ * Camera rig: stays mostly steady so the *character's* own motion (sliding
+ * left/right and turning) reads as the movement — rather than the camera
+ * orbiting. Only a gentle dolly-in across the page adds depth.
  */
 function CameraRig({ scrollRef }) {
   const { camera } = useThree()
-  const target = useRef(new THREE.Vector3(0, 0.2, 0))
+  const target = useRef(new THREE.Vector3(0, 0.35, 0))
 
   useFrame((_, delta) => {
     const s = scrollRef.current ?? 0
 
-    // Camera orbits slightly and dollies in/out across the page.
-    const angle = s * Math.PI * 0.5 - Math.PI * 0.1
-    const radius = 4.2 - s * 0.8
-    const desiredX = Math.sin(angle) * radius
-    const desiredZ = Math.cos(angle) * radius
-    const desiredY = 0.25 + s * 0.35
+    const desiredX = 0
+    const desiredY = 0.3
+    const desiredZ = 4.3 - s * 0.5 // subtle dolly-in
 
     camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredX, 2.5, delta)
     camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredY, 2.5, delta)
     camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredZ, 2.5, delta)
 
-    // Always look at the upper chest / head region (bust framing).
+    // Keep aimed at the bust center; the character moves within the frame.
     target.current.set(0, 0.35, 0)
     camera.lookAt(target.current)
   })

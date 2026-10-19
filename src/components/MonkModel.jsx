@@ -46,25 +46,44 @@ export default function MonkModel({ scrollRef, groupRef }) {
     })
   }, [scene])
 
-  // Per-frame idle animation: subtle breathing bob + ease toward target yaw.
+  // Per-frame idle animation + scroll-driven staging.
+  //
+  // The page has 5 "stages" (hero, about, skills, projects, contact). We read
+  // a continuous stage value (0..4) from scrollRef and interpolate the
+  // character's horizontal position + yaw so the motion motivates where the
+  // content sits:
+  //
+  //   stage 0 (hero)     front,  centered
+  //   stage 1 (about)    turns RIGHT, slides LEFT   → content on the right
+  //   stage 2 (skills)   turns LEFT,  slides RIGHT  → content on the left
+  //   stage 3 (projects) faces BACK,  centered
+  //   stage 4 (contact)  front,  centered
+  //
+  // Keyframes per stage: [xOffset (world units), yaw (radians)]
   useFrame((state, delta) => {
     bobRef.current += delta
+
+    const scroll = scrollRef?.current ?? 0
+    const stageCount = STAGES.length - 1
+    const sf = scroll * stageCount // continuous stage 0..4
+    const i = Math.min(Math.floor(sf), stageCount - 1)
+    const f = smoothstep(sf - i) // eased 0..1 between the two keyframes
+
+    const [x0, y0] = STAGES[i]
+    const [x1, y1] = STAGES[i + 1]
+    const targetX = x0 + (x1 - x0) * f
+    const targetYaw = y0 + (y1 - y0) * f
+
+    if (groupRef?.current) {
+      const g = groupRef.current
+      g.position.x = THREE.MathUtils.damp(g.position.x, targetX, 4, delta)
+      // small idle sway layered on the staged yaw
+      const yawWithSway = targetYaw + Math.sin(bobRef.current * 0.4) * 0.03
+      g.rotation.y = THREE.MathUtils.damp(g.rotation.y, yawWithSway, 4, delta)
+    }
     if (innerRef.current) {
       // gentle vertical "breathing"
       innerRef.current.position.y = BASE_Y + Math.sin(bobRef.current * 0.8) * 0.015
-    }
-    if (groupRef?.current) {
-      const scroll = scrollRef?.current ?? 0
-      // Base slow idle spin + scroll-driven turn. One full extra turn across
-      // the whole page keeps it dramatic but readable for a bust.
-      const targetYaw =
-        Math.sin(bobRef.current * 0.15) * 0.12 + scroll * Math.PI * 2
-      groupRef.current.rotation.y = THREE.MathUtils.damp(
-        groupRef.current.rotation.y,
-        targetYaw,
-        3,
-        delta
-      )
     }
   })
 
@@ -83,5 +102,23 @@ export default function MonkModel({ scrollRef, groupRef }) {
 // downward so the camera, aimed at the chest/head, crops it as a bust.
 const MODEL_SCALE = 3.4
 const BASE_Y = -2.55
+
+// Per-section staging keyframes: [horizontal offset, yaw].
+//  +x = screen right, -x = screen left.
+//  yaw: 0 = front, -0.6 ≈ turned to his right, +0.6 ≈ turned to his left,
+//       Math.PI = facing away (back).
+const STAGES = [
+  [0, 0], // hero     — front, center
+  [-1.7, -0.6], // about    — turn right, slide left  (content right)
+  [1.7, 0.6], // skills   — turn left,  slide right (content left)
+  [0, Math.PI], // projects — face back, center
+  [0, 0], // contact  — front, center
+]
+
+// Smootherstep easing (0..1) for buttery transitions between stages.
+function smoothstep(t) {
+  const x = Math.min(Math.max(t, 0), 1)
+  return x * x * x * (x * (x * 6 - 15) + 10)
+}
 
 useGLTF.preload(MODEL_URL)

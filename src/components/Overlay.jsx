@@ -39,8 +39,8 @@ export default function Overlay({ active, onNavigate }) {
         </div>
       </section>
 
-      {/* ABOUT */}
-      <section className="section section--left" id="about">
+      {/* ABOUT — character turns right & slides left, so content sits right */}
+      <section className="section section--right" id="about">
         <div className="panel">
           <h2 className="section-heading">{about.heading}</h2>
           {about.body.map((p, i) => (
@@ -51,8 +51,8 @@ export default function Overlay({ active, onNavigate }) {
         </div>
       </section>
 
-      {/* SKILLS */}
-      <section className="section section--right" id="skills">
+      {/* SKILLS — character turns left & slides right, so content sits left */}
+      <section className="section section--left" id="skills">
         <div className="panel">
           <h2 className="section-heading">{skills.heading}</h2>
           <div className="skill-groups">
@@ -70,9 +70,9 @@ export default function Overlay({ active, onNavigate }) {
         </div>
       </section>
 
-      {/* PROJECTS */}
-      <section className="section section--left" id="projects">
-        <div className="panel panel--wide">
+      {/* PROJECTS — character faces back, centered; content centered */}
+      <section className="section section--center" id="projects">
+        <div className="panel panel--wide panel--center">
           <h2 className="section-heading">{projects.heading}</h2>
           <div className="project-grid">
             {projects.items.map((p) => (
