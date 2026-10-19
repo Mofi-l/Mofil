@@ -12,10 +12,11 @@ import Smoke from './Smoke'
  * The canvas sits behind the HTML overlay, so we read the pointer from a
  * window listener rather than R3F's own (canvas-only) pointer events.
  */
-function CursorLight() {
+function CursorLight({ extinguishRef }) {
   const lightRef = useRef()
   const ndc = useRef({ x: 0, y: 0.1 })
   const target = useRef(new THREE.Vector3(0, 0.4, 2.6))
+  const tRef = useRef(0)
 
   useEffect(() => {
     const onMove = (e) => {
@@ -28,19 +29,34 @@ function CursorLight() {
 
   useFrame((_, delta) => {
     if (!lightRef.current) return
+    tRef.current += delta
     // Map the cursor to a region just in front of the bust.
-    target.current.set(ndc.current.x * 3.4, 0.4 + ndc.current.y * 2.4, 2.6)
-    const a = 1 - Math.pow(0.0015, delta) // frame-rate independent easing
+    target.current.set(ndc.current.x * 3.4, 0.4 + ndc.current.y * 2.4, 2.4)
+    const a = 1 - Math.pow(0.0015, delta)
     lightRef.current.position.lerp(target.current, a)
+
+    // Torch flicker: layered sine waves for an organic flame wobble.
+    const t = tRef.current
+    const flicker =
+      1 + Math.sin(t * 18) * 0.08 + Math.sin(t * 33 + 1.1) * 0.05 + Math.sin(t * 7) * 0.06
+    // Dim as the torch is blown out (shared signal from the bow interaction).
+    const ext = extinguishRef?.current ?? 0
+    const lit = Math.max(0, 1 - ext)
+    lightRef.current.intensity = THREE.MathUtils.damp(
+      lightRef.current.intensity,
+      40 * flicker * lit,
+      8,
+      delta
+    )
   })
 
   return (
     <pointLight
       ref={lightRef}
-      intensity={18}
-      distance={14}
+      intensity={40}
+      distance={9}
       decay={2}
-      color="#e9f0ff"
+      color="#ff8a3c"
     />
   )
 }
@@ -134,7 +150,7 @@ export default function Scene({ scrollRef, onReady, extinguishRef }) {
 
       <Smoke count={14} />
       <Embers count={280} />
-      <CursorLight />
+      <CursorLight extinguishRef={extinguishRef} />
       <CameraRig scrollRef={scrollRef} />
     </Canvas>
   )
