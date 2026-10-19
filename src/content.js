@@ -18,6 +18,31 @@ export const content = {
     ],
   },
 
+  // Experience / career path — a chronological timeline of roles ("The Path")
+  experience: {
+    heading: 'The Path',
+    items: [
+      {
+        role: 'Senior Engineer',
+        org: 'Company / Guild',
+        period: '2023 — Present',
+        desc: 'What you own here and the impact you have made. One or two tight lines.',
+      },
+      {
+        role: 'Software Engineer',
+        org: 'Company / Order',
+        period: '2020 — 2023',
+        desc: 'A key accomplishment or the scope of work you were trusted with.',
+      },
+      {
+        role: 'Junior Engineer',
+        org: 'Where it began',
+        period: '2018 — 2020',
+        desc: 'How you sharpened your craft and the foundations you laid.',
+      },
+    ],
+  },
+
   // Skills section — grouped "disciplines"
   skills: {
     heading: 'Disciplines',
@@ -71,6 +96,7 @@ export const content = {
 export const sections = [
   { id: 'hero', label: 'Enter' },
   { id: 'about', label: 'The Vow' },
+  { id: 'experience', label: 'The Path' },
   { id: 'skills', label: 'Disciplines' },
   { id: 'projects', label: 'Contracts' },
   { id: 'contact', label: 'Summon' },

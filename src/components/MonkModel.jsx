@@ -105,25 +105,26 @@ const MODEL_SCALE = 3.4
 const BASE_Y = -2.55
 
 // Per-section staging keyframes: [horizontal offset, yaw]. One entry per
-// section: hero, about, skills, projects, contact.
+// section, in order: hero, about, experience, skills, projects, contact.
 //
 //  +x = screen right, -x = screen left.
 //
 //  Yaw is a CONTINUOUS, monotonically-increasing path so the character keeps
 //  turning the SAME direction and physically pivots around (through his back)
 //  between sections — instead of swinging back through the front each time.
-//  Facing equivalents (mod 2π):
-//    0             = front
-//    +1.15         = faces screen-right (right profile)
-//    π  (3.14)     = faces away (back)
-//    2π-1.15 (5.13)= faces screen-left  (left profile)
-//    2π (6.28)     = front again
+//  Facing equivalents (mod 2π): 0 = front, +1.15 = right profile,
+//  π = back, 2π-1.15 (5.13) = left profile, 2π = front.
+//  Each side-content section places the character on the OPPOSITE side,
+//  facing across the frame toward its panel.
+const R = 1.15 // profile turn amount (~66°)
+const TAU = Math.PI * 2
 const STAGES = [
-  [0, 0], //              hero     — front, center
-  [-1.7, 1.15], //              about    — slide left,  face right → content right
-  [1.7, 2 * Math.PI - 1.15], //  skills   — slide right, face left (turns around via his back)
-  [0, 2 * Math.PI], //              projects — front-ish, center (completes the turn)
-  [0, 2 * Math.PI], //              contact  — front, center
+  [0, 0], //          hero       — front, center
+  [-1.7, R], //          about      — slide left,  face right → content right
+  [1.7, TAU - R], //  experience — slide right, face left  → content left  (turns around via back)
+  [-1.7, TAU + R], //  skills     — slide left,  face right → content right (continues turning)
+  [0, 2 * TAU], //          projects   — front, center (completes a full turn)
+  [0, 2 * TAU], //          contact    — front, center
 ]
 
 // Smootherstep easing (0..1) for buttery transitions between stages.

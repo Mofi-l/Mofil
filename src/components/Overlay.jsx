@@ -6,7 +6,7 @@ import { content, sections } from '../content'
  * cleanly onto the 3D camera / model choreography.
  */
 export default function Overlay({ active, onNavigate }) {
-  const { name, title, tagline, about, skills, projects, contact } = content
+  const { name, title, tagline, about, experience, skills, projects, contact } = content
 
   return (
     <div className="overlay">
@@ -51,8 +51,27 @@ export default function Overlay({ active, onNavigate }) {
         </div>
       </section>
 
-      {/* SKILLS — character turns left & slides right, so content sits left */}
-      <section className="section section--left" id="skills">
+      {/* EXPERIENCE — character slides right & faces left, so content sits left */}
+      <section className="section section--left" id="experience">
+        <div className="panel">
+          <h2 className="section-heading">{experience.heading}</h2>
+          <ol className="timeline">
+            {experience.items.map((e, i) => (
+              <li className="timeline__item" key={i}>
+                <div className="timeline__head">
+                  <span className="timeline__role">{e.role}</span>
+                  <span className="timeline__period">{e.period}</span>
+                </div>
+                <div className="timeline__org">{e.org}</div>
+                <p className="timeline__desc">{e.desc}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* SKILLS — character slides left & faces right, so content sits right */}
+      <section className="section section--right" id="skills">
         <div className="panel">
           <h2 className="section-heading">{skills.heading}</h2>
           <div className="skill-groups">
