@@ -20,26 +20,6 @@ export default function MonkModel({ scrollRef, groupRef, onReady }) {
   const innerRef = useRef()
   const bobRef = useRef(0)
   const readyRef = useRef(false)
-  // Cursor in normalized device coords (−1..1). Used to make the character
-  // dip toward the torch when it's brought up near the face.
-  const ndcRef = useRef({ x: 0, y: -1, active: false })
-
-  useEffect(() => {
-    const onMove = (e) => {
-      ndcRef.current.x = (e.clientX / window.innerWidth) * 2 - 1
-      ndcRef.current.y = -((e.clientY / window.innerHeight) * 2 - 1)
-      ndcRef.current.active = true
-    }
-    const onLeave = () => {
-      ndcRef.current.active = false
-    }
-    window.addEventListener('pointermove', onMove, { passive: true })
-    window.addEventListener('pointerleave', onLeave)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerleave', onLeave)
-    }
-  }, [])
 
   // Enhance materials once: deepen shadows, add a touch of sheen so the
   // dark-fantasy rim light reads well.
@@ -113,44 +93,6 @@ export default function MonkModel({ scrollRef, groupRef, onReady }) {
     if (innerRef.current) {
       // gentle vertical "breathing"
       innerRef.current.position.y = BASE_Y + Math.sin(bobRef.current * 0.8) * 0.015
-
-      // ── Face-nod interaction ──
-      // When the torch (cursor) is brought up near the character's face
-      // region (upper-centre of the screen), the figure dips its head/upper
-      // body toward it. Since the model has no neck bone, we tilt the whole
-      // bust slightly — reads as acknowledging the flame. Returns to neutral
-      // as the torch moves away. Only engages on the front-facing sections.
-      const ndc = ndcRef.current
-      const scrollNow = scrollRef?.current ?? 0
-      // Face sits roughly upper-centre. Distance from that point (NDC).
-      const FACE_X = 0
-      const FACE_Y = 0.5
-      const dx = ndc.x - FACE_X
-      const dy = ndc.y - FACE_Y
-      const dist = Math.hypot(dx, dy)
-      // Proximity 0..1 (1 = right on the face), only within a radius.
-      const RADIUS = 0.55
-      let prox = ndc.active ? Math.max(0, 1 - dist / RADIUS) : 0
-      prox = prox * prox // ease-in so it only reacts when genuinely close
-      // Fade the effect out when the character is turned away (back/side),
-      // where a forward head-dip wouldn't read correctly.
-      const facing = Math.cos(scrollNow * Math.PI * 2) * 0.5 + 0.5 // 1 front → 0 back
-      prox *= facing
-
-      const targetPitch = prox * 0.22 // downward nod (radians)
-      const targetLean = THREE.MathUtils.clamp(dx, -1, 1) * prox * 0.12 // lean toward torch
-      innerRef.current.rotation.x = THREE.MathUtils.damp(
-        innerRef.current.rotation.x,
-        targetPitch,
-        6,
-        delta
-      )
-      innerRef.current.rotation.z = THREE.MathUtils.damp(
-        innerRef.current.rotation.z,
-        -targetLean,
-        6,
-        delta
-      )
     }
   })
 
