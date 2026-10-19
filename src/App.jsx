@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useProgress } from '@react-three/drei'
 import Scene from './components/Scene'
 import Overlay from './components/Overlay'
+import TorchCursor from './components/TorchCursor'
 import { sections } from './content'
 import './App.css'
 
@@ -61,6 +62,7 @@ export default function App() {
       <Scene scrollRef={scrollRef} />
       <div className="vignette" />
       <Overlay active={active} onNavigate={navigate} />
+      <TorchCursor />
 
       <div className={`loader ${loaded ? 'is-hidden' : ''}`}>
         <div className="loader__ring" />

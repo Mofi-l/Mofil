@@ -58,7 +58,7 @@ export default function Smoke({ count = 14 }) {
     // Breathe the whole haze in and out so it reads as rising + clearing.
     if (matRef.current) {
       const t = state.clock.getElapsedTime()
-      matRef.current.opacity = 0.14 + (Math.sin(t * 0.18) * 0.5 + 0.5) * 0.12
+      matRef.current.opacity = 0.05 + (Math.sin(t * 0.18) * 0.5 + 0.5) * 0.05
     }
   })
 
@@ -76,9 +76,9 @@ export default function Smoke({ count = 14 }) {
         ref={matRef}
         map={texture}
         size={6}
-        color={new THREE.Color('#848ea2')}
+        color={new THREE.Color('#5a6475')}
         transparent
-        opacity={0.2}
+        opacity={0.08}
         depthWrite={false}
         fog={false}
         blending={THREE.NormalBlending}
