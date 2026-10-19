@@ -49,10 +49,10 @@ export default function Overlay({ active, onNavigate }) {
             </span>
           </div>
           <p className="hero-tagline">{tagline}</p>
-          <div className="scroll-hint">
-            <span>scroll into the dark</span>
-            <span className="scroll-hint__arrow">↓</span>
-          </div>
+        </div>
+        <div className="scroll-hint">
+          <span>scroll into the dark</span>
+          <span className="scroll-hint__arrow">↓</span>
         </div>
       </section>
 

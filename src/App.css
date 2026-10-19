@@ -69,22 +69,22 @@
 }
 
 .hero-title-swap {
-  position: relative;
   margin-top: 1rem;
-  display: block;
-  min-height: 1.6em;
+  display: grid;
+  justify-items: center; /* center both stacked titles horizontally */
+  align-items: center;
 }
 .hero-title {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
+  grid-area: 1 / 1; /* stack both spans in the same cell */
   text-align: center;
   font-size: clamp(0.78rem, 2.1vw, 1.3rem);
   color: var(--blood-bright);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
+  /* letter-spacing adds trailing space on the right; nudge left so the line
+     reads as optically centered under the name. */
+  padding-left: 0.14em;
   transition: opacity 0.8s ease, transform 0.8s ease;
   opacity: 1;
 }
