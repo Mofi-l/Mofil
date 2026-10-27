@@ -10,6 +10,35 @@ const MODEL_URL = `${import.meta.env.BASE_URL}models/monk-optimized.glb`
 // Reusable scratch vectors for projecting the head to screen space.
 const _headWorld = new THREE.Vector3()
 const _headProj = new THREE.Vector3()
+const _v = new THREE.Vector3()
+const _qYaw = new THREE.Quaternion()
+const _qBow = new THREE.Quaternion()
+const _AXIS_BOW = new THREE.Vector3(1, 0, 0) // bone-local X = world X (pitch)
+const _AXIS_YAW = new THREE.Vector3(0, 0, 1) // rig_root-local Z = world Y (yaw)
+
+// Points on the sculpt, in the glTF scene's own (unscaled) space. Measured from
+// the mesh: the face mask sits ~0.08 left of the model's centre line, so the
+// head joint (on the centre line) can't be used as a yaw pivot.
+const NECK_PIVOT = new THREE.Vector3(-0.079, 0.799, 0.0)
+const EYE_CENTRE = new THREE.Vector3(-0.079, 0.8605, 0.0745)
+const EYE_HALF_GAP = 0.0103
+
+// Soft radial glow for the ember eyes (white core -> transparent).
+function makeEyeTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32)
+  grd.addColorStop(0, 'rgba(255,240,220,1)')
+  grd.addColorStop(0.18, 'rgba(255,170,90,0.95)')
+  grd.addColorStop(0.45, 'rgba(255,80,20,0.35)')
+  grd.addColorStop(1, 'rgba(255,40,0,0)')
+  g.fillStyle = grd
+  g.fillRect(0, 0, 64, 64)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
 
 /**
  * The shadow-monk character, framed as a bust (head → chest).
@@ -28,6 +57,26 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
   // Cursor in normalized device coords (−1..1). Drives the head nod when the
   // torch is brought up near the face.
   const ndcRef = useRef({ x: 0, y: -1, active: false })
+  // Head-look + eyes rig, built once the first frame has world matrices.
+  const rigRef = useRef(null)
+  const lookRef = useRef({ yaw: 0, pitch: 0 })
+  const blinkRef = useRef({ next: 2.5, t: -1 })
+  const layoutRef = useRef(STAGES.map(() => ({ ndc: 0, narrow: false })))
+
+  // Re-measure the free space beside each panel when the layout can change.
+  useEffect(() => {
+    const measure = () => {
+      layoutRef.current = measureStages()
+    }
+    measure()
+    const t = setTimeout(measure, 800) // after web fonts settle
+    window.addEventListener('resize', measure)
+    document.fonts?.ready?.then(measure)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
 
   useEffect(() => {
     const onMove = (e) => {
@@ -106,25 +155,43 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
 
     const scroll = scrollRef?.current ?? 0
     const stageCount = STAGES.length - 1
-    const sf = scroll * stageCount // continuous stage 0..4
+    const sf = scroll * stageCount // continuous stage 0..5
     const i = Math.min(Math.floor(sf), stageCount - 1)
     const f = smoothstep(sf - i) // eased 0..1 between the two keyframes
-
-    const [x0, y0] = STAGES[i]
-    const [x1, y1] = STAGES[i + 1]
-    const targetX = x0 + (x1 - x0) * f
-    const targetYaw = y0 + (y1 - y0) * f
+    // Resolve each keyframe's world x from its measured screen position: the
+    // visible half-width at the model's depth turns NDC into world units.
+    const cam = state.camera
+    const halfW = (z) => (cam.position.z - z) * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect
+    const resolve = (k) => {
+      const st = STAGES[k]
+      const lay = layoutRef.current[k] ?? { ndc: 0, narrow: false }
+      const z = lay.narrow && st.side !== 'center' ? NARROW_Z : st.z
+      const yaw = lay.narrow && st.side !== 'center' ? 0 : st.yaw
+      const x = lay.ndc * halfW(z) - BODY_OFFSET_X * Math.cos(yaw)
+      return { x, y: st.y, z, yaw }
+    }
+    const a = resolve(i)
+    const b = resolve(i + 1)
+    const lerp = (k) => a[k] + (b[k] - a[k]) * f
 
     if (groupRef?.current) {
       const g = groupRef.current
-      g.position.x = THREE.MathUtils.damp(g.position.x, targetX, 4, delta)
+      g.position.x = THREE.MathUtils.damp(g.position.x, lerp('x'), 4, delta)
+      g.position.y = THREE.MathUtils.damp(g.position.y, lerp('y'), 4, delta)
+      g.position.z = THREE.MathUtils.damp(g.position.z, lerp('z'), 3, delta)
       // small idle sway layered on the staged yaw
-      const yawWithSway = targetYaw + Math.sin(bobRef.current * 0.4) * 0.03
+      const yawWithSway = lerp('yaw') + Math.sin(bobRef.current * 0.4) * 0.03
       g.rotation.y = THREE.MathUtils.damp(g.rotation.y, yawWithSway, 4, delta)
     }
     if (innerRef.current) {
-      // gentle vertical "breathing"
+      // Breathing: a slow chest rise (tiny scale) plus the existing bob.
+      const br = Math.sin(bobRef.current * 1.25)
       innerRef.current.position.y = BASE_Y + Math.sin(bobRef.current * 0.8) * 0.015
+      innerRef.current.scale.set(
+        MODEL_SCALE * (1 + br * 0.0035),
+        MODEL_SCALE * (1 + br * 0.006),
+        MODEL_SCALE * (1 + br * 0.0035)
+      )
     }
 
     // ── Head bow toward the torch ──
@@ -165,12 +232,51 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
       const ext = extinguishRef?.current ?? prox
       const bowDrive = prox * Math.max(0, (ext - 0.3) / 0.7) // lag behind snuff
       const targetBow = bowDrive * 0.785 // radians (~45° — a natural bow)
-      headRef.current.rotation.x = THREE.MathUtils.damp(
-        headRef.current.rotation.x,
-        targetBow,
-        5,
-        delta
-      )
+
+      // ── Look toward the torch ──
+      // Before the torch is close enough to bow, the monk tracks it with his
+      // head (small yaw + tilt). Fades out as the bow takes over.
+      const look = lookRef.current
+      const follow = ndc.active ? 1 - Math.min(1, bowDrive * 2) : 0
+      const wantYaw = THREE.MathUtils.clamp(dx * 0.35, -0.28, 0.28) * follow
+      const wantPitch = THREE.MathUtils.clamp(-dy * 0.18, -0.12, 0.1) * follow
+      look.yaw = THREE.MathUtils.damp(look.yaw, wantYaw, 3, delta)
+      look.pitch = THREE.MathUtils.damp(look.pitch, wantPitch + targetBow, 5, delta)
+
+      const rig = rigRef.current ?? (rigRef.current = buildRig(scene, headRef.current))
+      if (rig) {
+        // Compose: bow about the head joint, then yaw about the neck pivot under
+        // the face, so the head turns in place instead of swinging sideways.
+        _qBow.setFromAxisAngle(_AXIS_BOW, look.pitch)
+        _qYaw.setFromAxisAngle(_AXIS_YAW, look.yaw)
+        const bone = headRef.current
+        bone.quaternion.copy(_qYaw).multiply(_qBow)
+        _v.copy(rig.restPos).sub(rig.pivot).applyQuaternion(_qYaw).add(rig.pivot)
+        bone.position.copy(_v)
+
+        // ── Ember eyes ──
+        const bl = blinkRef.current
+        const t = bobRef.current
+        if (bl.t < 0 && t > bl.next) bl.t = 0
+        let open = 1
+        if (bl.t >= 0) {
+          bl.t += delta
+          const k = bl.t / 0.16
+          open = k < 1 ? Math.abs(1 - 2 * k) : 1
+          if (k >= 1) {
+            bl.t = -1
+            bl.next = t + 3 + Math.random() * 4
+          }
+        }
+        // Brighter in the dark: when the torch is out, the eyes take over.
+        const ext = extinguishRef?.current ?? 0
+        const glow = (0.75 + ext * 0.6) * (0.92 + Math.sin(t * 9) * 0.04 + Math.sin(t * 23) * 0.03)
+        for (const sp of rig.eyes) {
+          sp.material.opacity = Math.min(1, glow)
+          sp.scale.set(rig.eyeSize * glow, rig.eyeSize * glow * Math.max(0.12, open) * 0.62, 1)
+        }
+        rig.light.intensity = 0.04 * glow * open
+      }
     }
   })
 
@@ -190,33 +296,99 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
 const MODEL_SCALE = 3.4
 const BASE_Y = -2.55
 
-// Per-section staging keyframes: [horizontal offset, yaw]. One entry per
-// section, in order: hero, about, experience, skills, projects, contact.
+// Per-section staging, one entry per section: hero, about, experience,
+// skills, projects, contact.
 //
-//  +x = screen right, -x = screen left.
+// Instead of spinning a full turn between sections, the monk moves to the
+// empty side of each panel and turns toward it, as if reading along with the
+// visitor. Over the full-width project grid he steps back into the fog, then
+// comes forward beside the "Summon" card.
 //
-//  Yaw is a CONTINUOUS, monotonically-increasing path so the character keeps
-//  turning the SAME direction and physically pivots around (through his back)
-//  between sections — instead of swinging back through the front each time.
-//  Facing equivalents (mod 2π): 0 = front, +1.15 = right profile,
-//  π = back, 2π-1.15 (5.13) = left profile, 2π = front.
-//  Each side-content section places the character on the OPPOSITE side,
-//  facing across the frame toward its panel.
-const R = 1.15 // profile turn amount (~66°)
-const TAU = Math.PI * 2
+//   side: where he stands. 'left' / 'right' = centre of the free space beside
+//         that section's panel (measured from the DOM, so it adapts to the
+//         window width); 'center' = middle of the screen.
+//   y, z: vertical offset / depth (− = further away), world units
+//   yaw:  radians (+ turns him toward screen right)
 const STAGES = [
-  [0, 0], //          hero       — front, center
-  [-1.7, R], //          about      — slide left,  face right → content right
-  [1.7, TAU - R], //  experience — slide right, face left  → content left  (turns around via back)
-  [-1.7, TAU + R], //  skills     — slide left,  face right → content right (continues turning)
-  [0, 2 * TAU], //          projects   — front, center (completes a full turn)
-  [0, 2 * TAU], //          contact    — front, center
+  { side: 'center', y: -0.18, z: 0, yaw: 0.12 }, //  hero: a touch low so the staff clears the title
+  { side: 'left', y: 0, z: 0, yaw: 0.55 }, //        about: panel is on the right
+  { side: 'right', y: 0, z: -0.3, yaw: -0.55 }, //   experience: panel is on the left
+  { side: 'left', y: 0, z: -0.3, yaw: 0.55 }, //     skills: panel is on the right
+  { side: 'center', y: 0.1, z: -3.2, yaw: 0 }, //    projects: steps back behind the card grid
+  { side: 'left', y: -0.2, z: 0.25, yaw: 0.4 }, //   contact: beside the card, facing it
 ]
+
+// If the free space beside a panel is narrower than this (fraction of the
+// viewport width, e.g. phones), he stands centred and further back instead.
+const MIN_GAP = 0.22
+const NARROW_Z = -2.2
+// Nav dots on the right edge eat into the right-hand gap.
+const RIGHT_RESERVE_PX = 110
+// The body's visual centre sits left of the model origin (world units at yaw 0).
+const BODY_OFFSET_X = -0.28
+
+// Screen-space target per stage: { ndc: −1..1 horizontal centre, narrow }.
+function measureStages() {
+  const W = window.innerWidth
+  const sections = document.querySelectorAll('.section')
+  return STAGES.map((st, i) => {
+    if (st.side === 'center') return { ndc: 0, narrow: false }
+    const panel = sections[i]?.querySelector('.panel')
+    if (!panel) return { ndc: 0, narrow: true }
+    const r = panel.getBoundingClientRect()
+    const [lo, hi] = st.side === 'left' ? [0, r.left] : [r.right, W - RIGHT_RESERVE_PX]
+    if ((hi - lo) / W < MIN_GAP) return { ndc: 0, narrow: true }
+    return { ndc: ((lo + hi) / 2 / W) * 2 - 1, narrow: false }
+  })
+}
 
 // Smootherstep easing (0..1) for buttery transitions between stages.
 function smoothstep(t) {
   const x = Math.min(Math.max(t, 0), 1)
   return x * x * x * (x * (x * 6 - 15) + 10)
+}
+
+// Builds the head-look pivot and the ember eyes. Runs once, on the first frame
+// (world matrices are valid then). Eyes are parented to the head bone so they
+// bow and turn with the hood, and depth-tested so the hood hides them when the
+// monk turns away.
+function buildRig(scene, bone) {
+  if (!bone || !bone.parent) return null
+  scene.updateMatrixWorld(true)
+  const parent = bone.parent
+  const toParent = (p) => parent.worldToLocal(scene.localToWorld(p.clone()))
+  const toBone = (p) => bone.worldToLocal(scene.localToWorld(p.clone()))
+
+  const tex = makeEyeTexture()
+  const boneScale = bone.getWorldScale(new THREE.Vector3()).x || 1
+  const eyes = [-1, 1].map((side) => {
+    const sp = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: tex,
+        color: '#ff7a2e',
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false,
+        toneMapped: false,
+      })
+    )
+    sp.position.copy(toBone(EYE_CENTRE.clone().add(new THREE.Vector3(side * EYE_HALF_GAP, 0, 0))))
+    sp.renderOrder = 2
+    bone.add(sp)
+    return sp
+  })
+  // A faint warm spill on the inside of the hood.
+  const light = new THREE.PointLight('#ff5a1f', 0.04, 0.5, 2)
+  light.position.copy(toBone(EYE_CENTRE.clone().add(new THREE.Vector3(0, 0, 0.02))))
+  bone.add(light)
+
+  return {
+    restPos: bone.position.clone(),
+    pivot: toParent(NECK_PIVOT),
+    eyes,
+    light,
+    eyeSize: 0.05 / boneScale, // ~5 cm glow in world units
+  }
 }
 
 useGLTF.preload(MODEL_URL)
