@@ -16,38 +16,11 @@ const _qBow = new THREE.Quaternion()
 const _AXIS_BOW = new THREE.Vector3(1, 0, 0) // bone-local X = world X (pitch)
 const _AXIS_YAW = new THREE.Vector3(0, 0, 1) // rig_root-local Z = world Y (yaw)
 
-// Points on the sculpt, in the glTF scene's own (unscaled) space. Measured from
-// the mesh: the face mask sits ~0.08 left of the model's centre line, so the
-// head joint (on the centre line) can't be used as a yaw pivot.
+// Neck point under the face, in the glTF scene's own (unscaled) space. The face
+// sits ~0.08 left of the model's centre line, where the head joint is, so the
+// joint itself can't be used as a yaw pivot.
 const NECK_PIVOT = new THREE.Vector3(-0.079, 0.799, 0.0)
-const EYE_CENTRE = new THREE.Vector3(-0.079, 0.8605, 0.0745)
-const EYE_HALF_GAP = 0.0103
 
-// Soft radial glow for the ember eyes (white core -> transparent).
-function makeEyeTexture() {
-  const c = document.createElement('canvas')
-  c.width = c.height = 64
-  const g = c.getContext('2d')
-  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-  grd.addColorStop(0, 'rgba(255,240,220,1)')
-  grd.addColorStop(0.18, 'rgba(255,170,90,0.95)')
-  grd.addColorStop(0.45, 'rgba(255,80,20,0.35)')
-  grd.addColorStop(1, 'rgba(255,40,0,0)')
-  g.fillStyle = grd
-  g.fillRect(0, 0, 64, 64)
-  const t = new THREE.CanvasTexture(c)
-  t.colorSpace = THREE.SRGBColorSpace
-  return t
-}
-
-/**
- * The shadow-monk character, framed as a bust (head → chest).
- *
- * The model is a static sculpt (no rig / no animations), so motion is driven
- * by rotating + bobbing the whole group here in Three.js. The parent scene
- * passes a `scrollRef` (0..1 progress) and a `targetRotation` that we ease
- * toward on each frame.
- */
 export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef }) {
   const { scene } = useGLTF(MODEL_URL)
   const innerRef = useRef()
@@ -57,10 +30,9 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
   // Cursor in normalized device coords (−1..1). Drives the head nod when the
   // torch is brought up near the face.
   const ndcRef = useRef({ x: 0, y: -1, active: false })
-  // Head-look + eyes rig, built once the first frame has world matrices.
+  // Head-look pivot, built once the first frame has world matrices.
   const rigRef = useRef(null)
   const lookRef = useRef({ yaw: 0, pitch: 0 })
-  const blinkRef = useRef({ next: 2.5, t: -1 })
   const layoutRef = useRef(STAGES.map(() => ({ ndc: 0, narrow: false })))
 
   // Re-measure the free space beside each panel when the layout can change.
@@ -166,7 +138,7 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
       const st = STAGES[k]
       const lay = layoutRef.current[k] ?? { ndc: 0, narrow: false }
       const z = lay.narrow && st.side !== 'center' ? NARROW_Z : st.z
-      const yaw = lay.narrow && st.side !== 'center' ? 0 : st.yaw
+      const yaw = st.yaw
       const x = lay.ndc * halfW(z) - BODY_OFFSET_X * Math.cos(yaw)
       return { x, y: st.y, z, yaw }
     }
@@ -254,28 +226,6 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
         _v.copy(rig.restPos).sub(rig.pivot).applyQuaternion(_qYaw).add(rig.pivot)
         bone.position.copy(_v)
 
-        // ── Ember eyes ──
-        const bl = blinkRef.current
-        const t = bobRef.current
-        if (bl.t < 0 && t > bl.next) bl.t = 0
-        let open = 1
-        if (bl.t >= 0) {
-          bl.t += delta
-          const k = bl.t / 0.16
-          open = k < 1 ? Math.abs(1 - 2 * k) : 1
-          if (k >= 1) {
-            bl.t = -1
-            bl.next = t + 3 + Math.random() * 4
-          }
-        }
-        // Brighter in the dark: when the torch is out, the eyes take over.
-        const ext = extinguishRef?.current ?? 0
-        const glow = (0.75 + ext * 0.6) * (0.92 + Math.sin(t * 9) * 0.04 + Math.sin(t * 23) * 0.03)
-        for (const sp of rig.eyes) {
-          sp.material.opacity = Math.min(1, glow)
-          sp.scale.set(rig.eyeSize * glow, rig.eyeSize * glow * Math.max(0.12, open) * 0.62, 1)
-        }
-        rig.light.intensity = 0.04 * glow * open
       }
     }
   })
@@ -308,14 +258,18 @@ const BASE_Y = -2.55
 //         that section's panel (measured from the DOM, so it adapts to the
 //         window width); 'center' = middle of the screen.
 //   y, z: vertical offset / depth (− = further away), world units
-//   yaw:  radians (+ turns him toward screen right)
+//   yaw:  radians. A continuous, increasing path (as before) so he keeps
+//         turning the same way and pivots round through his back between
+//         sections: 0 = front, +R = right profile, TAU-R = left profile.
+const R = 1.15 // profile turn (~66°)
+const TAU = Math.PI * 2
 const STAGES = [
-  { side: 'center', y: -0.18, z: 0, yaw: 0.12 }, //  hero: a touch low so the staff clears the title
-  { side: 'left', y: 0, z: 0, yaw: 0.55 }, //        about: panel is on the right
-  { side: 'right', y: 0, z: -0.3, yaw: -0.55 }, //   experience: panel is on the left
-  { side: 'left', y: 0, z: -0.3, yaw: 0.55 }, //     skills: panel is on the right
-  { side: 'center', y: 0.1, z: -3.2, yaw: 0 }, //    projects: steps back behind the card grid
-  { side: 'left', y: -0.2, z: 0.25, yaw: 0.4 }, //   contact: beside the card, facing it
+  { side: 'center', y: -0.18, z: 0, yaw: 0 }, //       hero: a touch low so the staff clears the title
+  { side: 'left', y: 0, z: 0, yaw: R }, //             about: faces right, toward the panel
+  { side: 'right', y: 0, z: -0.3, yaw: TAU - R }, //   experience: faces left, toward the panel
+  { side: 'left', y: 0, z: -0.3, yaw: TAU + R }, //    skills: faces right, toward the grid
+  { side: 'center', y: 0.1, z: -3.2, yaw: 2 * TAU }, // projects: front, stepped back behind the cards
+  { side: 'left', y: -0.2, z: 0.25, yaw: 2 * TAU }, // contact: front, beside the card
 ]
 
 // If the free space beside a panel is narrower than this (fraction of the
@@ -348,47 +302,13 @@ function smoothstep(t) {
   return x * x * x * (x * (x * 6 - 15) + 10)
 }
 
-// Builds the head-look pivot and the ember eyes. Runs once, on the first frame
-// (world matrices are valid then). Eyes are parented to the head bone so they
-// bow and turn with the hood, and depth-tested so the hood hides them when the
-// monk turns away.
+// Builds the head-look pivot. Runs once, on the first frame (world matrices
+// are valid then).
 function buildRig(scene, bone) {
   if (!bone || !bone.parent) return null
   scene.updateMatrixWorld(true)
-  const parent = bone.parent
-  const toParent = (p) => parent.worldToLocal(scene.localToWorld(p.clone()))
-  const toBone = (p) => bone.worldToLocal(scene.localToWorld(p.clone()))
-
-  const tex = makeEyeTexture()
-  const boneScale = bone.getWorldScale(new THREE.Vector3()).x || 1
-  const eyes = [-1, 1].map((side) => {
-    const sp = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: tex,
-        color: '#ff7a2e',
-        blending: THREE.AdditiveBlending,
-        transparent: true,
-        depthWrite: false,
-        toneMapped: false,
-      })
-    )
-    sp.position.copy(toBone(EYE_CENTRE.clone().add(new THREE.Vector3(side * EYE_HALF_GAP, 0, 0))))
-    sp.renderOrder = 2
-    bone.add(sp)
-    return sp
-  })
-  // A faint warm spill on the inside of the hood.
-  const light = new THREE.PointLight('#ff5a1f', 0.04, 0.5, 2)
-  light.position.copy(toBone(EYE_CENTRE.clone().add(new THREE.Vector3(0, 0, 0.02))))
-  bone.add(light)
-
-  return {
-    restPos: bone.position.clone(),
-    pivot: toParent(NECK_PIVOT),
-    eyes,
-    light,
-    eyeSize: 0.05 / boneScale, // ~5 cm glow in world units
-  }
+  const pivot = bone.parent.worldToLocal(scene.localToWorld(NECK_PIVOT.clone()))
+  return { restPos: bone.position.clone(), pivot }
 }
 
 useGLTF.preload(MODEL_URL)
