@@ -1,95 +1,49 @@
-import { Suspense, useRef, useEffect } from 'react'
+import { Suspense, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, ContactShadows } from '@react-three/drei'
 import * as THREE from 'three'
 import MonkModel from './MonkModel'
 import Embers from './Embers'
 import Smoke from './Smoke'
-
-/**
- * A soft light that eases toward the cursor, in front of the character, so
- * moving the mouse rakes extra light across the robe and reveals more detail.
- * The canvas sits behind the HTML overlay, so we read the pointer from a
- * window listener rather than R3F's own (canvas-only) pointer events.
- */
-function CursorLight({ extinguishRef }) {
-  const lightRef = useRef()
-  const ndc = useRef({ x: 0, y: 0.1 })
-  const target = useRef(new THREE.Vector3(0, 0.4, 2.6))
-  const tRef = useRef(0)
-
-  useEffect(() => {
-    const onMove = (e) => {
-      ndc.current.x = (e.clientX / window.innerWidth) * 2 - 1
-      ndc.current.y = -((e.clientY / window.innerHeight) * 2 - 1)
-    }
-    window.addEventListener('pointermove', onMove, { passive: true })
-    return () => window.removeEventListener('pointermove', onMove)
-  }, [])
-
-  useFrame((_, delta) => {
-    if (!lightRef.current) return
-    tRef.current += delta
-    // Map the cursor to a region just in front of the bust.
-    target.current.set(ndc.current.x * 3.4, 0.4 + ndc.current.y * 2.4, 2.4)
-    const a = 1 - Math.pow(0.0015, delta)
-    lightRef.current.position.lerp(target.current, a)
-
-    // Torch flicker: layered sine waves for an organic flame wobble.
-    const t = tRef.current
-    const flicker =
-      1 + Math.sin(t * 18) * 0.08 + Math.sin(t * 33 + 1.1) * 0.05 + Math.sin(t * 7) * 0.06
-    // Dim as the torch is blown out (shared signal from the bow interaction).
-    const ext = extinguishRef?.current ?? 0
-    const lit = Math.max(0, 1 - ext)
-    lightRef.current.intensity = THREE.MathUtils.damp(
-      lightRef.current.intensity,
-      40 * flicker * lit,
-      8,
-      delta
-    )
-  })
-
-  return (
-    <pointLight
-      ref={lightRef}
-      intensity={40}
-      distance={9}
-      decay={2}
-      color="#ff8a3c"
-    />
-  )
-}
+import DustBurst from './DustBurst'
 
 /**
  * Camera rig: stays mostly steady so the *character's* own motion (sliding
  * left/right and turning) reads as the movement — rather than the camera
  * orbiting. Only a gentle dolly-in across the page adds depth.
  */
-function CameraRig({ scrollRef }) {
+function CameraRig({ scrollRef, introRef }) {
   const { camera } = useThree()
   const target = useRef(new THREE.Vector3(0, 0.35, 0))
 
   useFrame((_, delta) => {
     const s = scrollRef.current ?? 0
 
+    // During the entrance the camera pulls back to frame the whole body and the landing dust,
+    // then eases into the bust framing as he stands.
+    const wide = introRef?.current?.wide ?? 0
     const desiredX = 0
-    const desiredY = 0.3
-    const desiredZ = 4.3 - s * 0.5 // subtle dolly-in
+    const desiredY = THREE.MathUtils.lerp(0.3, INTRO_CAM.y, wide)
+    const desiredZ = THREE.MathUtils.lerp(4.3 - s * 0.5, INTRO_CAM.z, wide) // subtle dolly-in
+    if (introRef?.current?.t == null && wide === 1) {
+      camera.position.set(desiredX, desiredY, desiredZ) // hidden before the drop: cut, don't glide
+    }
 
     camera.position.x = THREE.MathUtils.damp(camera.position.x, desiredX, 2.5, delta)
     camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredY, 2.5, delta)
     camera.position.z = THREE.MathUtils.damp(camera.position.z, desiredZ, 2.5, delta)
 
     // Keep aimed at the bust center; the character moves within the frame.
-    target.current.set(0, 0.35, 0)
+    target.current.set(0, THREE.MathUtils.lerp(0.35, INTRO_CAM.targetY, wide), 0)
     camera.lookAt(target.current)
   })
 
   return null
 }
 
-export default function Scene({ scrollRef, onReady, extinguishRef }) {
+const INTRO_CAM = { y: -1.0, z: 7.0, targetY: -1.1 }
+
+export default function Scene({ scrollRef, onReady, sparkRef, introRef, onIntroDone }) {
   const groupRef = useRef()
 
   return (
@@ -122,10 +76,20 @@ export default function Scene({ scrollRef, onReady, extinguishRef }) {
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
+        shadow-normalBias={0.02}
       />
       {/* Silver rim/back light behind the figure for edge separation + detail
           (near-neutral so it reads as moonlit silver on black cloth, not blue). */}
-      <directionalLight position={[-2.5, 3.5, -4]} intensity={3.6} color="#bfc0c8" />
+      {/* Casts shadows so the hood blocks it from lighting the face inside. */}
+      <directionalLight
+        position={[-2.5, 3.5, -4]}
+        intensity={3.6}
+        color="#bfc0c8"
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.02}
+      />
       <spotLight
         position={[-4, 2, -2]}
         angle={0.6}
@@ -136,7 +100,15 @@ export default function Scene({ scrollRef, onReady, extinguishRef }) {
       <pointLight position={[0, -1.5, 2]} intensity={1.3} color="#c1121f" />
 
       <Suspense fallback={null}>
-        <MonkModel scrollRef={scrollRef} groupRef={groupRef} onReady={onReady} extinguishRef={extinguishRef} />
+        <MonkModel
+          scrollRef={scrollRef}
+          groupRef={groupRef}
+          onReady={onReady}
+          sparkRef={sparkRef}
+          introRef={introRef}
+          onIntroDone={onIntroDone}
+        />
+        <DustBurst introRef={introRef} />
         <Environment preset="night" />
         <ContactShadows
           position={[0, -2.4, 0]}
@@ -150,8 +122,7 @@ export default function Scene({ scrollRef, onReady, extinguishRef }) {
 
       <Smoke count={14} />
       <Embers count={280} />
-      <CursorLight extinguishRef={extinguishRef} />
-      <CameraRig scrollRef={scrollRef} />
+      <CameraRig scrollRef={scrollRef} introRef={introRef} />
     </Canvas>
   )
 }

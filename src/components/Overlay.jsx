@@ -6,20 +6,21 @@ import { content, sections } from '../content'
  * Each <section> is one full viewport tall so scroll progress maps
  * cleanly onto the 3D camera / model choreography.
  */
-export default function Overlay({ active, onNavigate }) {
+export default function Overlay({ active, onNavigate, revealed }) {
   const { name, title, intro, tagline, about, experience, skills, projects, contact } = content
 
   // Hero sub-line: show the "intro" ("Shadow Monk") first, then swap to the
-  // real title after 5 seconds with a cross-fade.
+  // real title 5 seconds after the hero text is revealed, with a cross-fade.
   const [showTitle, setShowTitle] = useState(false)
   useEffect(() => {
+    if (!revealed) return undefined
     const t = setTimeout(() => setShowTitle(true), 5000)
     return () => clearTimeout(t)
-  }, [])
+  }, [revealed])
 
 
   return (
-    <div className="overlay">
+    <div className={`overlay ${revealed ? '' : 'is-intro'}`}>
       {/* Fixed side navigation */}
       <nav className="side-nav" aria-label="Section navigation">
         {sections.map((s, i) => (

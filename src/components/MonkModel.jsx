@@ -1,39 +1,46 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
+import { ENTRANCE_CLIP, CLEAR_T, END_T } from './entrance'
+import { GRAB_CLIP, BLOW_CLIP, GRAB, BLOW } from './spark'
 
 // Prefix with Vite's base URL so the asset resolves under the deploy sub-path
 // (e.g. /Mofil/models/... on GitHub Pages) as well as at root in dev.
-const MODEL_URL = `${import.meta.env.BASE_URL}models/monk-optimized.glb`
+const MODEL_URL = `${import.meta.env.BASE_URL}models/monk-rigged.glb`
 
 // Reusable scratch vectors for projecting the head to screen space.
 const _headWorld = new THREE.Vector3()
 const _headProj = new THREE.Vector3()
-const _v = new THREE.Vector3()
-const _qYaw = new THREE.Quaternion()
-const _qBow = new THREE.Quaternion()
-const _AXIS_BOW = new THREE.Vector3(1, 0, 0) // bone-local X = world X (pitch)
-const _AXIS_YAW = new THREE.Vector3(0, 0, 1) // rig_root-local Z = world Y (yaw)
+const _qLook = new THREE.Quaternion()
+const _qPitch = new THREE.Quaternion()
+const _qParent = new THREE.Quaternion()
+const _qRoot = new THREE.Quaternion()
+const _AXIS_PITCH = new THREE.Vector3(1, 0, 0) // model-space pitch (the monk faces +Z)
+const _AXIS_YAW = new THREE.Vector3(0, 1, 0) // model-space yaw
+const _anchor = new THREE.Vector3()
+const _fwd = new THREE.Vector3()
+const _up = new THREE.Vector3()
+const _p = new THREE.Vector3()
+const _q = new THREE.Vector3()
+const _scale = new THREE.Vector3()
 
-// Neck point under the face, in the glTF scene's own (unscaled) space. The face
-// sits ~0.08 left of the model's centre line, where the head joint is, so the
-// joint itself can't be used as a yaw pivot.
-const NECK_PIVOT = new THREE.Vector3(-0.079, 0.799, 0.0)
-
-export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef }) {
-  const { scene } = useGLTF(MODEL_URL)
-  const innerRef = useRef()
+export default function MonkModel({ scrollRef, groupRef, onReady, sparkRef, introRef, onIntroDone }) {
+  const { scene, animations } = useGLTF(MODEL_URL)
+  const mixer = useMemo(() => new THREE.AnimationMixer(scene), [scene])
   const bobRef = useRef(0)
   const readyRef = useRef(false)
-  const headRef = useRef(null) // the "head_joint" bone, for the nod
-  // Cursor in normalized device coords (−1..1). Drives the head nod when the
-  // torch is brought up near the face.
+  const headRef = useRef(null) // the "head" bone, for the look
+  const bonesRef = useRef(null) // chest + right hand, for the spark zones and the fist
+  // Cursor in normalized device coords (−1..1), for the head look.
   const ndcRef = useRef({ x: 0, y: -1, active: false })
-  // Head-look pivot, built once the first frame has world matrices.
-  const rigRef = useRef(null)
   const lookRef = useRef({ yaw: 0, pitch: 0 })
+  const pointsRef = useRef({ head: {}, ref: {}, mouth: {}, a: {}, b: {}, fist: {} }) // screen px
   const layoutRef = useRef(STAGES.map(() => ({ ndc: 0, narrow: false })))
+  const onIntroDoneRef = useRef(onIntroDone)
+  useEffect(() => {
+    onIntroDoneRef.current = onIntroDone
+  }, [onIntroDone])
 
   // Re-measure the free space beside each panel when the layout can change.
   useEffect(() => {
@@ -67,35 +74,85 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
     }
   }, [])
 
-  // Locate the head joint (added during the auto-rig step).
   useEffect(() => {
-    scene.traverse((o) => {
-      if (o.name === 'head_joint') headRef.current = o
-    })
+    headRef.current = scene.getObjectByName('head') ?? null
+    // GLTFLoader strips the dots from Blender bone names (hand.R → handR).
+    const bone = (n) => scene.getObjectByName(n) ?? scene.getObjectByName(n.replace('.', ''))
+    const chest = bone('chest')
+    const hand = bone('hand.R')
+    const knuckles = bone('fing1.R')
+    bonesRef.current = chest && hand && knuckles ? { chest, hand, knuckles } : null
   }, [scene])
 
-  // Enhance materials once: deepen shadows, add a touch of sheen so the
-  // dark-fantasy rim light reads well.
+  // Idle loops underneath; each section can play one move over it (SECTION_CLIPS), and the hero
+  // opens with the Entrance clip (drop, strike, sweep, rise).
+  const clipsRef = useRef(null)
+  useEffect(() => {
+    const idleClip = THREE.AnimationClip.findByName(animations, 'Idle')
+    if (!idleClip) return undefined
+    const idle = mixer.clipAction(idleClip).play()
+    const once = {}
+    for (const name of ONE_SHOTS) {
+      const clip = THREE.AnimationClip.findByName(animations, name)
+      if (!clip) continue
+      const a = mixer.clipAction(clip)
+      a.setLoop(THREE.LoopOnce, 1)
+      a.clampWhenFinished = true
+      once[name] = a
+    }
+    const c = { scene, idle, once, current: null, stage: -1, settled: 0, played: -1, entrance: 'pending' }
+    // The entrance plays once per page load: a remount (hot reload, WebGL context restore) starts standing.
+    if (introRef?.current?.done) {
+      c.entrance = 'done'
+      c.introDone = true
+    }
+    c.finishIntro = () => {
+      if (c.introDone) return
+      c.introDone = true
+      if (introRef) introRef.current = { t: null, wide: 0, done: true }
+      onIntroDoneRef.current?.()
+    }
+    clipsRef.current = c
+
+    const onFinished = (e) => {
+      if (e.action !== c.current) return
+      if (e.action === once[ENTRANCE]) c.finishIntro()
+      backToIdle(c, FADE_OUT)
+    }
+    mixer.addEventListener('finished', onFinished)
+    return () => {
+      mixer.removeEventListener('finished', onFinished)
+      mixer.stopAllAction()
+      mixer.uncacheRoot(scene)
+      scene.visible = true
+      clipsRef.current = null
+    }
+  }, [animations, mixer, scene, introRef])
+
+  // Materials are authored in Blender (robe, hood cloth, bronze staff, katana). The night
+  // environment is turned down, and the warm ember lights turn the robe and hood brown,
+  // so those two are darkened further to read as black cloth.
   useEffect(() => {
     scene.traverse((o) => {
       if (o.isMesh) {
         o.castShadow = true
         o.receiveShadow = true
         o.frustumCulled = false
-        const m = o.material
-        if (m && !m.userData.__tuned) {
-          // The model ships as one fully-metallic material for the whole
-          // character, so the robe reflected the environment and read as a lit
-          // grey/brown. Crush the albedo toward black and make the cloth fully
-          // matte so it reads as true ninja black — folds just barely catch the
-          // key/rim light, flats fall to black. We also cut the environment
-          // contribution so it stops picking up grey from the night preset.
-          if (m.color) m.color.multiplyScalar(0.18) // ~82% darker albedo
-          if (m.metalness !== undefined) m.metalness = 0.05 // matte cloth
-          if (m.roughness !== undefined) m.roughness = 0.92 // soft, non-shiny
-          m.envMapIntensity = 0.25
-          m.needsUpdate = true
-          m.userData.__tuned = true
+        const mats = Array.isArray(o.material) ? o.material : [o.material]
+        for (const m of mats) {
+          if (m && !m.userData.__tuned) {
+            m.envMapIntensity = 0.25
+            if (CLOTH.test(m.name)) {
+              // Matte black cloth: the warm specular highlight, not the albedo, is what read as brown.
+              m.color?.multiplyScalar(CLOTH_TINT)
+              m.metalnessMap = null
+              m.roughnessMap = null
+              m.metalness = 0.05
+              m.roughness = 0.92
+            }
+            m.needsUpdate = true
+            m.userData.__tuned = true
+          }
         }
       }
     })
@@ -117,6 +174,8 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
   // Keyframes per stage: [xOffset (world units), yaw (radians)]
   useFrame((state, delta) => {
     bobRef.current += delta
+    // Clamped so a long frame (tab switch, slow first frame) can't skip through a clip.
+    mixer.update(Math.min(delta, 0.1))
 
     // Signal readiness after the first rendered frame — the model is now
     // actually visible (geometry + textures uploaded), not just downloaded.
@@ -128,6 +187,7 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
     const scroll = scrollRef?.current ?? 0
     const stageCount = STAGES.length - 1
     const sf = scroll * stageCount // continuous stage 0..5
+    updateMoves(clipsRef.current, sf, delta)
     const i = Math.min(Math.floor(sf), stageCount - 1)
     const f = smoothstep(sf - i) // eased 0..1 between the two keyframes
     // Resolve each keyframe's world x from its measured screen position: the
@@ -155,86 +215,84 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
       const yawWithSway = lerp('yaw') + Math.sin(bobRef.current * 0.4) * 0.03
       g.rotation.y = THREE.MathUtils.damp(g.rotation.y, yawWithSway, 4, delta)
     }
-    if (innerRef.current) {
-      // Breathing: a slow chest rise (tiny scale) plus the existing bob.
-      const br = Math.sin(bobRef.current * 1.25)
-      innerRef.current.position.y = BASE_Y + Math.sin(bobRef.current * 0.8) * 0.015
-      innerRef.current.scale.set(
-        MODEL_SCALE * (1 + br * 0.0035),
-        MODEL_SCALE * (1 + br * 0.006),
-        MODEL_SCALE * (1 + br * 0.0035)
-      )
+
+    // Entrance progress for the camera and the dust: clip time, how wide the framing is, and the
+    // ground point under the body in world space.
+    const c = clipsRef.current
+    let wide = 0
+    if (c && introRef && !c.introDone) {
+      const land = c.once[ENTRANCE]
+      const t = c.entrance === 'done' && land ? land.time : null
+      wide = t == null ? 1 : 1 - smoothstep((t - CLEAR_T) / (END_T - CLEAR_T))
+      scene.updateWorldMatrix(true, false)
+      _anchor.set(GROUND_X, 0, GROUND_Z)
+      scene.localToWorld(_anchor)
+      introRef.current = { t, wide, anchor: _anchor.clone() }
     }
 
-    // ── Head bow toward the torch ──
-    // When the torch (cursor) comes up to the character's face, the head/hood
-    // bows DOWN — a deep bow that drops the face so the light rakes over the
-    // hood (real skinned deformation; only the head moves). We anchor the
-    // trigger on the head joint's ACTUAL screen position (projected each
-    // frame) so it works wherever the character is framed.
-    if (headRef.current) {
+    // ── Spark reactions + head look ──
+    const head = headRef.current
+    if (head) {
+      const { left, top, width, height } = state.size
+      const toPx = (v, out) => {
+        _q.copy(v).project(cam)
+        out.x = left + ((_q.x + 1) / 2) * width
+        out.y = top + ((1 - _q.y) / 2) * height
+        return out
+      }
+      const s = scene.getWorldScale(_scale).x // world units per model metre
+      scene.getWorldQuaternion(_qRoot)
+      _fwd.set(0, 0, 1).applyQuaternion(_qRoot)
+      _up.set(0, 1, 0).applyQuaternion(_qRoot)
+      head.getWorldPosition(_headWorld)
+
+      const spark = sparkRef?.current
+      const bones = bonesRef.current
+      let reacting = false
+      if (spark && bones && c) {
+        const pts = pointsRef.current
+        toPx(_headWorld, pts.head)
+        toPx(_p.copy(_headWorld).addScaledVector(_up, 0.1 * s), pts.ref)
+        const unit = Math.hypot(pts.ref.x - pts.head.x, pts.ref.y - pts.head.y) * 10 // px per model metre
+        toPx(_p.copy(_headWorld).addScaledVector(_up, MOUTH[0] * s).addScaledVector(_fwd, MOUTH[1] * s), pts.mouth)
+        toPx(_p.copy(_headWorld).addScaledVector(_up, ZONE_B[0] * s).addScaledVector(_fwd, ZONE_B[1] * s), pts.b)
+        bones.chest.getWorldPosition(_p)
+        toPx(_p.addScaledVector(_up, ZONE_A[0] * s).addScaledVector(_fwd, ZONE_A[1] * s), pts.a)
+        bones.hand.getWorldPosition(_p)
+        bones.knuckles.getWorldPosition(_q)
+        toPx(_p.lerp(_q, FIST_AT), pts.fist)
+        const hero = c.introDone && c.stage === 0 && sf < SETTLE_RANGE
+        reactToSpark(c, spark, pts, unit, hero)
+        reacting = c.current === c.once[GRAB_CLIP] || c.current === c.once[BLOW_CLIP]
+      }
+
+      // The head follows the cursor a little, except while a clip owns the head.
       const ndc = ndcRef.current
-      // World position of the head joint → normalized device coords.
-      headRef.current.getWorldPosition(_headWorld)
-      _headProj.copy(_headWorld).project(state.camera)
-
-
+      _headProj.copy(_headWorld).project(cam)
       const dx = ndc.x - _headProj.x
       const dy = ndc.y - _headProj.y
-      const dist = Math.hypot(dx, dy)
-      const RADIUS = 0.42 // how close (in NDC) the torch must get to engage
-      let prox = ndc.active ? Math.max(0, 1 - dist / RADIUS) : 0
-      prox = prox * prox * (3 - 2 * prox) // smoothstep ease
-
-      // "Blow out, then bow" sequence:
-      //  - The flame extinguishes quickly as the torch nears the face
-      //    (sharper curve, reaches 1 before full proximity).
-      //  - The head bows a touch behind the snuff, as if lowering after the
-      //    breath puts the flame out.
-      if (extinguishRef) {
-        const snuff = Math.min(1, prox * 1.6) // flame dies early/fast
-        extinguishRef.current = THREE.MathUtils.damp(
-          extinguishRef.current ?? 0,
-          snuff,
-          10,
-          delta
-        )
-      }
-      // Bow follows once the flame is mostly out.
-      const ext = extinguishRef?.current ?? prox
-      const bowDrive = prox * Math.max(0, (ext - 0.3) / 0.7) // lag behind snuff
-      const targetBow = bowDrive * 0.785 // radians (~45° — a natural bow)
-
-      // ── Look toward the torch ──
-      // Before the torch is close enough to bow, the monk tracks it with his
-      // head (small yaw + tilt). Fades out as the bow takes over.
       const look = lookRef.current
-      const follow = ndc.active ? 1 - Math.min(1, bowDrive * 2) : 0
+      const follow = ndc.active && !reacting ? 1 - wide : 0
       const wantYaw = THREE.MathUtils.clamp(dx * 0.35, -0.28, 0.28) * follow
       const wantPitch = THREE.MathUtils.clamp(-dy * 0.18, -0.12, 0.1) * follow
       look.yaw = THREE.MathUtils.damp(look.yaw, wantYaw, 3, delta)
-      look.pitch = THREE.MathUtils.damp(look.pitch, wantPitch + targetBow, 5, delta)
+      look.pitch = THREE.MathUtils.damp(look.pitch, wantPitch, 5, delta)
 
-      const rig = rigRef.current ?? (rigRef.current = buildRig(scene, headRef.current))
-      if (rig) {
-        // Compose: bow about the head joint, then yaw about the neck pivot under
-        // the face, so the head turns in place instead of swinging sideways.
-        _qBow.setFromAxisAngle(_AXIS_BOW, look.pitch)
-        _qYaw.setFromAxisAngle(_AXIS_YAW, look.yaw)
-        const bone = headRef.current
-        bone.quaternion.copy(_qYaw).multiply(_qBow)
-        _v.copy(rig.restPos).sub(rig.pivot).applyQuaternion(_qYaw).add(rig.pivot)
-        bone.position.copy(_v)
-
-      }
+      // Layer the look on top of the clip pose: a model-space rotation about the neck, moved
+      // into the head bone's parent space (parent⁻¹ · R · parent) so it works at any body pose.
+      _qLook.setFromAxisAngle(_AXIS_YAW, look.yaw).multiply(_qPitch.setFromAxisAngle(_AXIS_PITCH, look.pitch))
+      head.parent.updateWorldMatrix(true, false)
+      head.parent.getWorldQuaternion(_qParent).premultiply(_qRoot.invert())
+      _qLook.premultiply(_qRoot.copy(_qParent).invert()).multiply(_qParent)
+      head.quaternion.premultiply(_qLook)
     }
   })
 
   return (
     <group ref={groupRef}>
-      {/* innerRef holds the framing transform: scale up and push the model
+      {/* Framing transform: scale up and push the model
           down so the camera sees head→chest (a bust crop). */}
-      <group ref={innerRef} position={[0, BASE_Y, 0]} scale={MODEL_SCALE}>
+      <group position={[0, BASE_Y, 0]} scale={MODEL_SCALE}>
         <primitive object={scene} />
       </group>
     </group>
@@ -244,6 +302,22 @@ export default function MonkModel({ scrollRef, groupRef, onReady, extinguishRef 
 // Framing constants — the model is ~0.98m tall. We scale it up and offset it
 // downward so the camera, aimed at the chest/head, crops it as a bust.
 const MODEL_SCALE = 3.4
+// Spark points, model metres from a joint: [up, forward] and a zone radius. The face zone sits in
+// front of the chin (from the neck joint), the chest zone in front of the chest joint; the fist
+// is FIST_AT of the way from the wrist to the knuckles.
+const MOUTH = [0.0, 0.1]
+const ZONE_B = [-0.04, 0.15, 0.085]
+const ZONE_A = [0.03, 0.17, 0.12]
+const FIST_AT = 0.6
+const RELIGHT_MARGIN = 1.3 // the spark relights once it is this far outside both zones
+const COOLDOWN = 0.8 // s after a relight before the next reaction
+const REACT_FADE = 0.12
+// Ground point under the body (model space, metres) where the landing dust starts.
+const GROUND_X = -0.08
+const GROUND_Z = 0.1
+// Body (Tripo atlas) and hood materials, darkened in the page lighting.
+const CLOTH = /^(tripo_mat|HoodCloth)/
+const CLOTH_TINT = 0.45
 const BASE_Y = -2.55
 
 // Per-section staging, one entry per section: hero, about, experience,
@@ -271,6 +345,114 @@ const STAGES = [
   { side: 'center', y: 0.1, z: -3.2, yaw: 2 * TAU }, // projects: front, stepped back behind the cards
   { side: 'left', y: -0.2, z: 0.25, yaw: 2 * TAU }, // contact: front, beside the card
 ]
+
+// Section moves: played once each time the visitor settles on that section (contact: a bow).
+const SECTION_CLIPS = { 5: 'Bow' }
+const ENTRANCE = ENTRANCE_CLIP
+const ONE_SHOTS = [ENTRANCE, GRAB_CLIP, BLOW_CLIP, ...Object.values(SECTION_CLIPS)]
+const ENTRANCE_DELAY = 0.9 // s after the first frame: the loader fades and the empty scene shows first
+const SETTLE = 0.6 // s spent near a section before its move plays
+const SETTLE_RANGE = 0.2 // how close (in stages) to the section counts as settled
+const FADE_IN = 0.4
+const FADE_OUT = 0.5
+const REDUCED_MOTION =
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+function playMove(c, name, fade = FADE_IN) {
+  const next = c.once[name]
+  if (!next || next === c.current) return
+  const from = c.current ?? c.idle
+  next.reset().setEffectiveWeight(1).play()
+  from.crossFadeTo(next, fade, false)
+  c.current = next
+}
+
+function backToIdle(c, fade) {
+  if (!c.current) return
+  c.idle.reset().setEffectiveWeight(1).play()
+  c.current.crossFadeTo(c.idle, fade, false)
+  c.current = null
+}
+
+function updateMoves(c, sf, delta) {
+  if (!c) return
+  const stage = Math.round(sf)
+
+  // Entrance: hidden until the loader has faded (the airborne first pose hangs into the top of
+  // the frame), then he drops in.
+  if (c.entrance === 'pending') {
+    const land = c.once[ENTRANCE]
+    if (!land || REDUCED_MOTION || stage !== 0) {
+      c.entrance = 'done'
+      c.finishIntro()
+    } else {
+      land.reset().setEffectiveWeight(1).play()
+      land.paused = true
+      c.idle.stop()
+      c.scene.visible = false
+      c.current = land
+      c.entrance = 0
+      c.played = 0
+      return
+    }
+  }
+  if (typeof c.entrance === 'number') {
+    c.entrance += delta
+    if (c.entrance >= ENTRANCE_DELAY) {
+      c.once[ENTRANCE].paused = false
+      c.scene.visible = true
+      c.entrance = 'done'
+    }
+    return
+  }
+
+  if (stage !== c.stage) {
+    c.stage = stage
+    c.settled = 0
+    // Leaving a section cuts its move short so the next one starts from Idle.
+    if (c.current && c.played !== stage) {
+      if (c.current === c.once[ENTRANCE]) c.finishIntro()
+      backToIdle(c, FADE_IN)
+    }
+    if (c.played !== stage) c.played = -1
+  }
+  if (REDUCED_MOTION || Math.abs(sf - stage) > SETTLE_RANGE) {
+    c.settled = 0
+    return
+  }
+  c.settled += delta
+  const name = SECTION_CLIPS[stage]
+  if (name && c.played !== stage && c.settled >= SETTLE) {
+    c.played = stage
+    playMove(c, name)
+  }
+}
+
+// Starts Grab (chest zone) or Blow (face zone) when the lit spark enters a zone, and hands the
+// spark back ('free') once it has been dark long enough and has left both zones.
+function reactToSpark(c, spark, pts, unit, hero) {
+  spark.mouth = pts.mouth
+  spark.fist = pts.fist
+  const dA = Math.hypot(spark.x - pts.a.x, spark.y - pts.a.y) / unit
+  const dB = Math.hypot(spark.x - pts.b.x, spark.y - pts.b.y) / unit
+  const now = performance.now()
+  if (spark.mode === 'free') {
+    if (!hero || c.current || REDUCED_MOTION || !spark.lit || !spark.mouse || now < spark.readyAt) return
+    const zone = dB < ZONE_B[2] ? 'blow' : dA < ZONE_A[2] ? 'grab' : null
+    if (!zone) return
+    spark.mode = zone
+    spark.start = now
+    playMove(c, zone === 'grab' ? GRAB_CLIP : BLOW_CLIP, REACT_FADE)
+    return
+  }
+  const dark = (spark.mode === 'grab' ? GRAB : BLOW).dark * 1000
+  const away = dA > ZONE_A[2] * RELIGHT_MARGIN && dB > ZONE_B[2] * RELIGHT_MARGIN
+  if (now - spark.start > dark && (away || !hero)) {
+    spark.mode = 'free'
+    spark.relit = now
+    spark.readyAt = now + COOLDOWN * 1000
+  }
+}
 
 // If the free space beside a panel is narrower than this (fraction of the
 // viewport width, e.g. phones), he stands centred and further back instead.
@@ -300,15 +482,6 @@ function measureStages() {
 function smoothstep(t) {
   const x = Math.min(Math.max(t, 0), 1)
   return x * x * x * (x * (x * 6 - 15) + 10)
-}
-
-// Builds the head-look pivot. Runs once, on the first frame (world matrices
-// are valid then).
-function buildRig(scene, bone) {
-  if (!bone || !bone.parent) return null
-  scene.updateMatrixWorld(true)
-  const pivot = bone.parent.worldToLocal(scene.localToWorld(NECK_PIVOT.clone()))
-  return { restPos: bone.position.clone(), pivot }
 }
 
 useGLTF.preload(MODEL_URL)

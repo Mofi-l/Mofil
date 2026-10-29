@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { GRAB, BLOW } from './spark'
 
 /**
  * Screen-space "torch" cursor.
@@ -9,15 +10,17 @@ import { useEffect, useRef } from 'react'
  *  - A layered flame head (soft outer glow + warm mid + bright inner core)
  *    with organic, wave-driven flicker reads as a small living flame rather
  *    than a plain dot.
- *  - A few embers peel off as it moves. When the pointer goes idle, smoke
- *    wisps rise from the resting flame.
+ *  - A few embers peel off as it moves.
  *  - After ~30s fully idle the flame burns down and dies out over a few
  *    seconds; moving the pointer relights it instantly.
+ *  - Spark reactions (sparkRef.mode, set by MonkModel): 'grab' pulls the
+ *    spark into the closing fist, flares and leaves a wisp of smoke; 'blow'
+ *    sends a breeze from the mouth that makes it flicker and go dark. Back to
+ *    'free', it relights on the cursor with a small pop.
  *
- * Full-screen <canvas> above the 3D scene; additive blending for fire/trail,
- * normal blending for smoke.
+ * Full-screen <canvas> above the 3D scene; additive blending for fire/trail.
  */
-export default function TorchCursor({ extinguishRef }) {
+export default function TorchCursor({ sparkRef }) {
   const canvasRef = useRef(null)
 
   useEffect(() => {
@@ -43,6 +46,8 @@ export default function TorchCursor({ extinguishRef }) {
       pointer.y = e.clientY
       lastMoveAt = performance.now()
       hasPointer = true
+      const sp = sparkRef?.current
+      if (sp) sp.mouse = e.pointerType === 'mouse' || e.pointerType === 'pen'
     }
     window.addEventListener('pointermove', onMove, { passive: true })
 
@@ -52,9 +57,9 @@ export default function TorchCursor({ extinguishRef }) {
     const trail = []
 
     const fire = [] // embers
-    const smoke = [] // idle smoke wisps
+    const smoke = [] // wisps from a snuffed spark
+    const gust = [] // breeze streaks
 
-    const IDLE_MS = 320
     const BURN_START_MS = 30000
     const BURN_FADE_MS = 6000
 
@@ -74,20 +79,49 @@ export default function TorchCursor({ extinguishRef }) {
       }
     }
 
-    const spawnSmoke = (x, y) => {
-      smoke.push({
-        x: x + (Math.random() - 0.5) * 8,
-        y: y - 2,
-        vx: (Math.random() - 0.5) * 0.14,
-        vy: -0.25 - Math.random() * 0.25,
-        life: 0,
-        maxLife: 1400 + Math.random() * 1200,
-        size: 10 + Math.random() * 14,
+    const spawnSmoke = (x, y, n, spread) => {
+      for (let i = 0; i < n; i++) {
+        smoke.push({
+          x: x + (Math.random() - 0.5) * spread,
+          y,
+          vx: (Math.random() - 0.5) * 0.012,
+          vy: -0.028 - Math.random() * 0.02,
+          life: 0,
+          maxLife: 900 + Math.random() * 700,
+          size: 1.6 + Math.random() * 1.4,
+          phase: Math.random() * 6.28,
+        })
+      }
+    }
+    // Breath: a soft widening plume of air (faint puffs that grow and slow as they travel) with a
+    // few long wind lines sweeping through it, from the mouth toward the spark.
+    const spawnBreath = (from, to) => {
+      const d = Math.hypot(to.x - from.x, to.y - from.y) || 1
+      const base = Math.atan2(to.y - from.y, to.x - from.x)
+      const ang = base + (Math.random() - 0.5) * 0.4
+      const sp = BLOW.speed * (0.75 + Math.random() * 0.35)
+      gust.push({
+        kind: 'puff',
+        x: from.x, y: from.y,
+        vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+        life: 0, maxLife: (d / sp) * 1.25 + 200,
+        r1: 12 + d * 0.12 + Math.random() * 6,
+      })
+    }
+    const spawnWindLine = (from, to) => {
+      const d = Math.hypot(to.x - from.x, to.y - from.y) || 1
+      gust.push({
+        kind: 'line',
+        x0: from.x, y0: from.y, x1: to.x, y1: to.y, d,
+        bend: (Math.random() - 0.5) * 0.35 * d,
+        off: (Math.random() - 0.5) * 8,
+        life: 0, maxLife: (d / BLOW.speed) * 1.4 + 160,
       })
     }
 
-    let smokeAccumulator = 0
-    let prevExt = 0
+    let mode = 'free'
+    let relitAt = -1e9
+    let snuffed = false // the blown spark has gone out (smoke and embers spawned once)
     let last = performance.now()
     let raf
 
@@ -108,63 +142,145 @@ export default function TorchCursor({ extinguishRef }) {
       const flameSpeed = Math.hypot(flame.vx, flame.vy)
 
       const idleFor = now - lastMoveAt
-      const idle = idleFor > IDLE_MS
       let burn = 1
       if (idleFor > BURN_START_MS) {
         burn = Math.max(0, 1 - (idleFor - BURN_START_MS) / BURN_FADE_MS)
       }
-      // Blow-out: the character snuffing the torch drives this toward 1,
-      // which crushes the flame.
-      const ext = extinguishRef?.current ?? 0
-      burn *= Math.max(0, 1 - ext)
-      // Once the torch is going out, stop any smoke and clear what's lingering
-      // so no smoke remains after it's extinguished.
-      if (ext > 0.4) smoke.length = 0
-      prevExt = ext
+      // ── Spark reactions ──
+      const spark = sparkRef?.current
+      const next = spark?.mode ?? 'free'
+      if (next !== mode) {
+        if (next === 'free') relitAt = now
+        trail.length = 0
+        snuffed = false
+        mode = next
+      }
+      const e = spark ? (now - spark.start) / 1000 : 0
+      let sx = flame.x
+      let sy = flame.y
+      let flare = 0
+      if (mode === 'grab') {
+        const f = spark.fist
+        const k = f ? smooth((e - GRAB.pull) / (GRAB.catch - GRAB.pull)) : 0
+        sx += (f ? f.x - sx : 0) * k
+        sy += (f ? f.y - sy : 0) * k
+        if (e >= GRAB.catch) {
+          const u = (e - GRAB.catch) / GRAB.flare
+          flare = u < 1 ? Math.sin(Math.min(1, u * 2.5) * Math.PI * 0.5) * (1 - u) : 0
+          burn = u < 1 ? 1 - u * u : 0
+        }
+        if (f && e > GRAB.wisp[0] && e < GRAB.wisp[1]) {
+          const left = 1 - (e - GRAB.wisp[0]) / (GRAB.wisp[1] - GRAB.wisp[0])
+          if (Math.random() < dt * 0.02 * left) spawnSmoke(f.x, f.y - 4, 1, 6)
+        }
+      } else if (mode === 'blow') {
+        const m = spark.mouth
+        const dist = m ? Math.hypot(flame.x - m.x, flame.y - m.y) : 0
+        const hit = BLOW.gust[0] + dist / BLOW.speed / 1000
+        if (m && e > BLOW.gust[0] && e < BLOW.gust[1]) {
+          const n = Math.floor(dt * 0.18 + Math.random())
+          for (let i = 0; i < n; i++) spawnBreath(m, flame)
+          if (Math.random() < dt * 0.012) spawnWindLine(m, flame)
+        }
+        if (e > hit && m) {
+          const u = Math.min(1, (e - hit) / BLOW.fade)
+          const ux = (flame.x - m.x) / (dist || 1)
+          const uy = (flame.y - m.y) / (dist || 1)
+          sx += ux * 12 * smooth(u)
+          sy += uy * 12 * smooth(u)
+          burn *= u < 1 ? (1 - u) * (0.45 + Math.random() * 0.55) : 0
+          if (u >= 1 && !snuffed) {
+            snuffed = true
+            spawnSmoke(sx, sy, 3, 3)
+            for (let i = 0; i < 4; i++) {
+              fire.push({
+                x: sx, y: sy,
+                vx: ux * (0.08 + Math.random() * 0.1) + (Math.random() - 0.5) * 0.05,
+                vy: uy * (0.08 + Math.random() * 0.1) + (Math.random() - 0.5) * 0.05,
+                life: 0, maxLife: 260 + Math.random() * 200, size: 1 + Math.random(), hue: 22 + Math.random() * 14,
+              })
+            }
+          }
+        }
+      }
+      const pop = Math.max(0, 1 - (now - relitAt) / RELIGHT_MS)
+      if (mode === 'free') burn *= 1 - pop * pop * pop
+      if (spark) {
+        spark.x = flame.x
+        spark.y = flame.y
+        spark.lit = hasPointer && mode === 'free' && burn > 0.5
+      }
 
-      // Record the trail head.
-      if (hasPointer) {
+      // Record the trail head (the spark held in the fist or blown out leaves none).
+      if (hasPointer && mode === 'free') {
         trail.unshift({ x: flame.x, y: flame.y })
         if (trail.length > TRAIL_MAX) trail.pop()
       }
 
       // Embers while moving + faint idle flicker.
-      if (hasPointer && burn > 0.02) {
+      if (hasPointer && burn > 0.02 && mode === 'free') {
         if (flameSpeed > 0.4) spawnFire(flame.x, flame.y, flameSpeed, burn)
         else if (Math.random() < 0.14 * burn) spawnFire(flame.x, flame.y, 1, burn)
       }
 
-      // Idle smoke from the resting flame — only while the flame is actually
-      // lit (not during/after blow-out) and much sparser than before.
-      if (hasPointer && idle && ext < 0.2) {
-        smokeAccumulator += dt
-        if (smokeAccumulator > 220 && Math.random() < 0.25 * burn) {
-          smokeAccumulator = 0
-          spawnSmoke(flame.x, flame.y)
-        }
-      }
-
       ctx.clearRect(0, 0, w, h)
 
-      // ── Smoke, normal blending ──
-      ctx.globalCompositeOperation = 'source-over'
+      // ── Smoke wisps and breeze, normal blending (smoke must not glow) ──
       for (let i = smoke.length - 1; i >= 0; i--) {
         const p = smoke[i]
         p.life += dt
         const tt = p.life / p.maxLife
         if (tt >= 1) { smoke.splice(i, 1); continue }
-        p.x += p.vx * dt
+        p.x += (p.vx + Math.sin(p.phase + p.life * 0.004) * 0.012) * dt
         p.y += p.vy * dt
-        p.vx += (Math.random() - 0.5) * 0.004 * dt
-        const grow = p.size * (1 + tt * 1.8)
-        const alpha = Math.sin(Math.min(tt, 1) * Math.PI) * 0.12
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, grow)
-        g.addColorStop(0, `rgba(120,124,132,${alpha})`)
-        g.addColorStop(1, 'rgba(120,124,132,0)')
-        ctx.fillStyle = g
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, grow, 0, Math.PI * 2)
-        ctx.fill()
+        const r = p.size * (1 + tt * 2.2)
+        const a = 0.22 * Math.sin(Math.min(1, tt * 4) * Math.PI * 0.5) * (1 - tt)
+        drawGlow(ctx, p.x, p.y, r, [
+          [0, `rgba(185,182,178,${a})`],
+          [1, 'rgba(150,150,150,0)'],
+        ])
+      }
+      ctx.lineCap = 'round'
+      for (let i = gust.length - 1; i >= 0; i--) {
+        const p = gust[i]
+        p.life += dt
+        const tt = p.life / p.maxLife
+        if (tt >= 1) { gust.splice(i, 1); continue }
+        const env = Math.sin(Math.min(1, tt * 3) * Math.PI * 0.5) * (1 - tt) * (1 - tt)
+        if (p.kind === 'puff') {
+          const drag = Math.pow(0.9985, dt)
+          p.vx *= drag
+          p.vy *= drag
+          p.x += p.vx * dt
+          p.y += p.vy * dt
+          drawGlow(ctx, p.x, p.y, 3 + p.r1 * Math.sqrt(tt), [
+            [0, `rgba(205,214,228,${0.06 * env})`],
+            [1, 'rgba(205,214,228,0)'],
+          ])
+        } else {
+          // Head runs along a gentle curve; the tail follows a little behind.
+          const head = Math.min(1, tt * 1.35)
+          const tail = Math.max(0, head - 0.45)
+          const nx = -(p.y1 - p.y0) / p.d
+          const ny = (p.x1 - p.x0) / p.d
+          const at = (u) => {
+            const k = p.bend * u * (1 - u) * 4 + p.off * (1 + u)
+            return [p.x0 + (p.x1 - p.x0) * u + nx * k, p.y0 + (p.y1 - p.y0) * u + ny * k]
+          }
+          const steps = 10
+          ctx.lineWidth = 0.9
+          for (let j = 0; j < steps; j++) {
+            const u0 = tail + ((head - tail) * j) / steps
+            const u1 = tail + ((head - tail) * (j + 1)) / steps
+            const [ax, ay] = at(u0)
+            const [bx, by] = at(u1)
+            ctx.strokeStyle = `rgba(215,224,236,${0.13 * env * ((j + 1) / steps)})`
+            ctx.beginPath()
+            ctx.moveTo(ax, ay)
+            ctx.lineTo(bx, by)
+            ctx.stroke()
+          }
+        }
       }
 
       ctx.globalCompositeOperation = 'lighter'
@@ -214,6 +330,19 @@ export default function TorchCursor({ extinguishRef }) {
 
       // ── Flame head: layered glow with organic, wave-driven flicker. The
       // body stretches slightly into a teardrop pointing up + opposite motion.
+      if (hasPointer && pop > 0 && mode === 'free') {
+        drawGlow(ctx, flame.x, flame.y, 6 + (1 - pop) * 18, [
+          [0, `rgba(255,200,120,${0.35 * pop})`],
+          [1, 'rgba(255,120,30,0)'],
+        ])
+      }
+      if (flare > 0) {
+        drawGlow(ctx, sx, sy, 10 + flare * 26, [
+          [0, `rgba(255,236,190,${0.75 * flare})`],
+          [0.35, `rgba(255,160,60,${0.4 * flare})`],
+          [1, 'rgba(255,90,0,0)'],
+        ])
+      }
       if (hasPointer && burn > 0.02) {
         // Smooth multi-wave flicker (no harsh jitter).
         const flick =
@@ -224,18 +353,18 @@ export default function TorchCursor({ extinguishRef }) {
         const base = (0.45 + burn * 0.55) * flick
 
         // Outer soft halo
-        drawGlow(ctx, flame.x, flame.y, 16 * base, [
+        drawGlow(ctx, sx, sy, 16 * base, [
           [0, `rgba(255,150,60,${0.14 * burn})`],
           [1, 'rgba(255,90,0,0)'],
         ])
         // Warm mid flame
-        drawGlow(ctx, flame.x, flame.y - 1 * base, 8 * base, [
+        drawGlow(ctx, sx, sy - 1 * base, 8 * base, [
           [0, `rgba(255,180,90,${0.34 * burn})`],
           [0.6, `rgba(255,120,30,${0.22 * burn})`],
           [1, 'rgba(255,80,0,0)'],
         ])
         // Bright inner core (hot white-gold), nudged up for a flame tip
-        drawGlow(ctx, flame.x, flame.y - 2 * base, 3.6 * base, [
+        drawGlow(ctx, sx, sy - 2 * base, 3.6 * base, [
           [0, `rgba(255,244,210,${0.6 * burn})`],
           [1, 'rgba(255,180,80,0)'],
         ])
@@ -251,7 +380,7 @@ export default function TorchCursor({ extinguishRef }) {
       window.removeEventListener('resize', onResize)
       window.removeEventListener('pointermove', onMove)
     }
-  }, [])
+  }, [sparkRef])
 
   return (
     <canvas
@@ -267,6 +396,13 @@ export default function TorchCursor({ extinguishRef }) {
       }}
     />
   )
+}
+
+const RELIGHT_MS = 320
+
+function smooth(t) {
+  const x = Math.min(Math.max(t, 0), 1)
+  return x * x * (3 - 2 * x)
 }
 
 // Small helper: radial-gradient filled circle.

@@ -656,3 +656,35 @@
     gap: 1rem;
   }
 }
+
+/* Entrance: nothing on screen until the monk has landed, cleared the dust and stood up; then the
+   hero text rises in line by line, followed by the scroll hint and the nav. */
+.hero-inner > *,
+.scroll-hint,
+.side-nav {
+  transition: opacity 0.9s ease, translate 0.9s ease;
+}
+.hero-inner > :nth-child(2) { transition-delay: 0.2s; }
+.hero-inner > :nth-child(3) { transition-delay: 0.4s; }
+.hero-inner > :nth-child(4) { transition-delay: 0.6s; }
+.scroll-hint { transition-delay: 1s; }
+.side-nav { transition-delay: 1.2s; }
+.overlay.is-intro .hero-inner > *,
+.overlay.is-intro .scroll-hint,
+.overlay.is-intro .side-nav {
+  opacity: 0;
+  pointer-events: none;
+  transition-delay: 0s;
+}
+.overlay.is-intro .hero-inner > * {
+  translate: 0 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-inner > *,
+  .scroll-hint,
+  .side-nav {
+    transition-duration: 0.01s;
+    transition-delay: 0s;
+  }
+}
